@@ -28,7 +28,7 @@ function loadEnv() {
   return out;
 }
 const env = { ...loadEnv(), ...process.env };
-const config = { jiraSite: "amla.atlassian.net", jiraStatus: "Code Review", githubOwner: "MRRSoft", claudePath: "claude", approveAssignee: "Umashankar Pardhi", repos: { admin: "", api: "", webstore: "", db: "" }, ...readJson(join(HERE, "config.json"), {}) };
+const config = { jiraSite: "amla.atlassian.net", jiraStatus: "Code Review", githubOwner: "MRRSoft", claudePath: "claude", approveAssignee: "Umashankar Pardhi", devStatuses: ["In Progress"], devScope: "mine", blockSeverity: "medium", repos: { admin: "", api: "", webstore: "", db: "" }, ...readJson(join(HERE, "config.json"), {}) };
 
 const state = { tickets: {}, settings: { schedule: { enabled: false, times: [] } }, lastSyncAt: null, syncing: false, syncError: "", ...readJson(DATA_FILE, {}) };
 state.syncing = false;
@@ -161,8 +161,11 @@ async function syncNow() {
   if (state.syncing) return;
   state.syncing = true; state.syncError = ""; save();
   try {
-    const jql = `assignee = currentUser() AND status = "${config.jiraStatus}" ORDER BY updated DESC`;
-    const found = await jira(`/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,description,comment,reporter,updated,created,labels,statuscategorychangedate&maxResults=50`);
+    // Review stage: tickets assigned to me in the review status. Dev stage: tickets still in development (advisory pre-review check).
+    const devs = (Array.isArray(config.devStatuses) ? config.devStatuses : []).filter(x => x && !/["\\]/.test(x));
+    const devPart = devs.length ? ` OR (${config.devScope === "all" ? "" : "assignee = currentUser() AND "}status in (${devs.map(x => '"' + x + '"').join(", ")}))` : "";
+    const jql = `(assignee = currentUser() AND status = "${config.jiraStatus}")${devPart} ORDER BY updated DESC`;
+    const found = await jira(`/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,description,comment,reporter,assignee,status,updated,created,labels,statuscategorychangedate&maxResults=50`);
     const seen = new Set();
     // Recent PRs per configured repo, fetched once per sync. Used to match the ticket key in the branch name or title,
     // because GitHub search only covers title/body/comments and many PRs carry the key only in the branch name.
@@ -182,6 +185,9 @@ async function syncNow() {
       t.summary = f.summary || ""; t.jiraUrl = `https://${config.jiraSite}/browse/${key}`; t.closed = false;
       t.criteria = adfText(f.description).slice(0, 6000);
       t.reporter = f.reporter ? { name: f.reporter.displayName || "", account: f.reporter.accountId || "" } : (t.reporter || null);
+      t.jiraStatus = f.status?.name || t.jiraStatus || "";
+      t.mode = t.jiraStatus && t.jiraStatus.toLowerCase() !== String(config.jiraStatus).toLowerCase() ? "dev" : "review";
+      t.assignee = f.assignee?.displayName || "";
       t.labels = Array.isArray(f.labels) ? f.labels.slice(0, 10) : [];
       t.updatedAt = f.updated || t.updatedAt || null;
       t.waitingSince = f.statuscategorychangedate || f.updated || t.waitingSince || null; // when the ticket last changed status
@@ -219,6 +225,7 @@ async function syncNow() {
         if (repo && byRepo.has(repo)) { try { prs[area] = await prInfo(repo, byRepo.get(repo)); } catch { prs[area] = { repo, number: byRepo.get(repo), url: `https://github.com/${repo}/pull/${byRepo.get(repo)}`, state: "unknown" }; } }
       }
       t.prs = prs;
+      if (t.mode === "dev" && !AREAS.some(x => prs[x]?.number)) { t.closed = true; state.tickets[key] = t; continue; } // dev stage: only tickets that already have a PR
       t.threads = t.threads || {};
       for (const area of AREAS) {
         if (!prs[area]?.number) { delete t.threads[area]; continue; }
@@ -284,6 +291,8 @@ function runClaudeOnce(prompt, { allowRead, cwd }) {
 }
 const HIGH = new Set(["blocker", "high"]);
 const SEV_ORDER = { blocker: 0, high: 1, medium: 2, low: 3, nit: 4 };
+// Strict by default: a finding of "medium" or above blocks the merge (config.blockSeverity: "high" | "medium" | "low").
+function BLOCKS(f) { return !!f && f.label !== "praise" && (SEV_ORDER[f.severity] ?? 9) <= (SEV_ORDER[config.blockSeverity] ?? 2); }
 
 function threadForPrompt(thread) {
   const items = (thread?.items || []).filter(i => i.body || i.state === "APPROVED" || i.state === "CHANGES_REQUESTED").slice(-80);
@@ -299,7 +308,7 @@ function threadForPrompt(thread) {
 // ---------- Review result hygiene ----------
 // The model's output is untrusted input: normalise it so a "High" or "critical" can never slip past the verdict.
 const SEV_ALIAS = { critical: "blocker", severe: "blocker", blocker: "blocker", high: "high", major: "high", medium: "medium", moderate: "medium", med: "medium", low: "low", minor: "low", nit: "nit", nitpick: "nit", info: "nit" };
-const CHECKS = [["requirements", "Requirements (Jira)"], ["correctness", "Functional correctness"], ["edgeCases", "Edge cases"], ["security", "Security"], ["errorHandling", "Error handling & logging"], ["standards", "Coding standards"], ["performance", "Performance"], ["breakingChanges", "Breaking changes"], ["impact", "Impact / regression scope"], ["conversation", "PR comments & discussion"], ["tests", "Tests"], ["maintainability", "Maintainability"]];
+const CHECKS = [["requirements", "Requirements (Jira)"], ["correctness", "Functional correctness"], ["edgeCases", "Edge cases"], ["security", "Security"], ["errorHandling", "Error handling & logging"], ["standards", "Coding standards"], ["architecture", "Architecture alignment"], ["performance", "Performance"], ["breakingChanges", "Breaking changes"], ["impact", "Impact / regression scope"], ["conversation", "PR comments & discussion"], ["tests", "Tests"], ["maintainability", "Maintainability"]];
 const CHECK_IDS = new Set(CHECKS.map(c => c[0]));
 const STATUS_RANK = { na: 0, pass: 1, concern: 2, fail: 3 };
 const LABELS = new Set(["issue", "suggestion", "question", "nitpick", "praise"]);
@@ -331,10 +340,10 @@ function normalizeReview(r, { truncated, testsRequired }) {
     const conf = ["high", "medium", "low"].includes(lc(f.confidence)) ? lc(f.confidence) : "medium";
     // A low-confidence concern is a question for the author, never a blocker.
     const severity = conf === "low" && (sev === "blocker" || sev === "high") ? "medium" : sev;
-    return { severity, category: CHECK_IDS.has(f.category) ? f.category : "correctness", label: LABELS.has(lc(f.label)) ? lc(f.label) : (severity === "nit" ? "nitpick" : "issue"), confidence: conf, file: String(f.file || ""), line: Number.isFinite(line) && line > 0 ? line : null, evidence: cap(f.evidence || "", 300), text: String(f.text), suggestion: f.suggestion ? String(f.suggestion) : "" };
+    return { severity, category: CHECK_IDS.has(f.category) ? f.category : "correctness", label: LABELS.has(lc(f.label)) ? lc(f.label) : (severity === "nit" ? "nitpick" : "issue"), confidence: conf, file: String(f.file || ""), line: Number.isFinite(line) && line > 0 ? line : null, evidence: cap(f.evidence || "", 300), text: String(f.text), suggestion: f.suggestion ? String(f.suggestion) : "", solutions: strList(f.solutions).slice(0, 4).map(x => cap(x, 300)) };
   }).filter(f => testsRequired || f.category !== "tests").filter(f => { const k = `${f.file}|${f.line}|${f.text.slice(0, 60)}`; if (seen.has(k)) return false; seen.add(k); return true; });
   // Keep the list readable: everything above nit, at most 3 nits.
-  let nits = 0; r.findings = r.findings.filter(f => f.severity !== "nit" || ++nits <= 3).slice(0, 25);
+  let nits = 0; r.findings = r.findings.filter(f => f.severity !== "nit" || ++nits <= 2).slice(0, 25);
   r.risk = { level: ["low", "medium", "high"].includes(lc(r.risk?.level)) ? lc(r.risk.level) : "medium", reason: String(r.risk?.reason || "") };
   r.whatChanged = String(r.whatChanged || "");
   r.approvalSummary = String(r.approvalSummary || "");
@@ -345,7 +354,7 @@ function normalizeReview(r, { truncated, testsRequired }) {
     const g = given[id] || {};
     let status = ["pass", "concern", "fail", "na"].includes(lc(g.status)) ? lc(g.status) : "na";
     const mine = r.findings.filter(f => f.category === id && f.label !== "praise");
-    const worst = mine.reduce((w, f) => Math.max(w, f.severity === "blocker" || f.severity === "high" ? 3 : f.severity === "medium" || f.severity === "low" ? 2 : 0), 0);
+    const worst = mine.reduce((w, f) => Math.max(w, BLOCKS(f) ? 3 : f.severity === "medium" || f.severity === "low" ? 2 : 0), 0);
     if (status === "fail" && worst < 3) status = "concern"; // "fail" must be backed by a blocker/high finding
     if (worst >= 2 && worst > STATUS_RANK[status]) status = worst === 3 ? "fail" : "concern";
     r.checklist[id] = { status, note: cap(g.note || "", 220) };
@@ -366,13 +375,13 @@ function normalizeReview(r, { truncated, testsRequired }) {
 
 // Hard rules from the PR conversation and the test results. These add findings, so the verdict and the checklist follow from them.
 function applyHardRules(r, { thread, testsRequired }) {
-  const add = (severity, category, text, extra = {}) => r.findings.push({ severity, category, label: "issue", confidence: "high", file: extra.file || "PR", line: extra.line ?? null, evidence: "", text, suggestion: extra.suggestion || "" });
+  const add = (severity, category, text, extra = {}) => r.findings.push({ severity, category, label: "issue", confidence: "high", file: extra.file || "PR", line: extra.line ?? null, evidence: "", text, suggestion: extra.suggestion || "", solutions: extra.solutions || [] });
   const t = r.tests;
   if (testsRequired) {
-    if (!t.casesProvided) add("high", "tests", "No test cases found. API PRs must include test cases (automated tests, or a written list of cases in the PR description or a comment).", { suggestion: "Add test cases covering the happy path, 400, 404, 403, 204 and the edge cases of this change." });
-    if (!t.resultsProvided) add("high", "tests", "Test results are not documented on the GitHub PR. Results must be in the PR description or a PR comment (cases with pass/fail, run output or a screenshot). Jira comments do not count.", { suggestion: "Paste the executed test cases and their results into the PR description or a comment." });
+    if (!t.casesProvided) add("high", "tests", "No test cases found. API PRs must include test cases (automated tests, or a written list of cases in the PR description or a comment).", { suggestion: "Add automated tests for every changed endpoint and service method.", solutions: ["Cover success, 400, 404, 403, 204 and the edge cases of this change.", "If automated tests are not possible, list the executed cases with their results in the PR description."] });
+    if (!t.resultsProvided) add("high", "tests", "Test results are not documented on the GitHub PR. Results must be in the PR description or a PR comment (cases with pass/fail, run output or a screenshot). Jira comments do not count.", { suggestion: "Paste the executed test cases and their results into the PR description.", solutions: ["Attach the test run output or a screenshot of the run to a PR comment.", "Add a table of case, expected, actual and pass/fail."] });
     else if (t.failed == null || t.passed == null) add("medium", "tests", "Test results are shown but the pass and fail counts cannot be read from them.", { suggestion: "State the totals, for example \"12 passed, 0 failed\"." });
-    if (t.failed > 0) add("high", "tests", `${t.failed} of ${t.total ?? "?"} test case${t.failed === 1 ? "" : "s"} failed (${t.passed ?? "?"} passed). A PR with failing tests cannot be approved.`, { suggestion: "Fix the failing cases and update the results on the PR." });
+    if (t.failed > 0) add("high", "tests", `${t.failed} of ${t.total ?? "?"} test case${t.failed === 1 ? "" : "s"} failed (${t.passed ?? "?"} passed). A PR with failing tests cannot be approved.`, { suggestion: "Fix the code so the failing cases pass, then re-run and update the results on the PR.", solutions: ["If a case is outdated by this change, update the case and explain why in the PR.", "Do not skip or delete a failing case to get a green run."] });
   }
   // Open review threads and someone else's outstanding "changes requested".
   for (const u of thread?.changesRequestedBy || []) add("high", "conversation", `${u} requested changes on GitHub and has not approved since.`, { suggestion: `Address the review comments and ask ${u} to re-review, or have the review dismissed.` });
@@ -391,10 +400,10 @@ function applyHardRules(r, { thread, testsRequired }) {
 function finishReview(r, { truncated }) {
   r.findings.sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9));
   // Re-evaluate checklist items after late-added findings (tests, truncation).
-  for (const f of r.findings) { const it = r.checklist[f.category]; if (!it || f.label === "praise") continue; const need = HIGH.has(f.severity) ? "fail" : (f.severity === "medium" || f.severity === "low") ? "concern" : null; if (need && STATUS_RANK[need] > STATUS_RANK[it.status]) it.status = need; }
-  const must = r.findings.filter(f => HIGH.has(f.severity));
+  for (const f of r.findings) { const it = r.checklist[f.category]; if (!it || f.label === "praise") continue; const need = BLOCKS(f) ? "fail" : (f.severity === "medium" || f.severity === "low") ? "concern" : null; if (need && STATUS_RANK[need] > STATUS_RANK[it.status]) it.status = need; }
+  const must = r.findings.filter(BLOCKS);
   r.verdict = must.length ? "request_changes" : "approve";
-  r.verdictReason = must.length ? `${must.length} blocker/high finding${must.length > 1 ? "s" : ""} must be fixed before merge: ${cap(must[0].text, 140)}` : (truncated ? "No blocker or high issues in the part of the diff that was reviewed; the diff was too large to review fully." : "No blocker or high issues found.");
+  r.verdictReason = must.length ? `${must.length} issue${must.length > 1 ? "s" : ""} must be fixed before merge: ${cap(String(must[0].text).split(/(?<=[.!?])\s/)[0], 140)}` : (truncated ? "No blocking issues in the part of the diff that was reviewed; the diff was too large to review fully." : "No open issues found.");
   if (!r.approvalSummary) r.approvalSummary = (r.whatChanged.match(/[^.!?]+[.!?]+/g) || [r.whatChanged]).slice(0, 2).map(x => x.trim()).join(" ");
 }
 
@@ -438,7 +447,7 @@ async function reviewOnePr(key, t, area) {
 // A PR whose review could not run still shows up, as a request for changes, so a human looks at it.
 function failedReview(t, area, e) {
   const pr = t.prs[area], msg = String(e.message || e).slice(0, 300);
-  const f = { severity: "high", category: "correctness", label: "issue", confidence: "high", file: "PR", line: null, evidence: "", text: `The automated review could not run for this PR (${msg}). Review it manually or run the review again.`, suggestion: "" };
+  const f = { severity: "high", category: "correctness", label: "issue", confidence: "high", file: "PR", line: null, evidence: "", text: `The automated review could not run for this PR (${msg}). Review it manually or run the review again.`, suggestion: "", solutions: [] };
   const checklist = Object.fromEntries(CHECKS.map(([id]) => [id, { status: "na", note: "Not reviewed" }]));
   return { failed: true, error: msg, verdict: "request_changes", verdictReason: "The automated review failed for this PR.", whatChanged: "The automated review failed for this PR, so there is no summary.", approvalSummary: "", risk: { level: "unknown", reason: "Not reviewed" }, checklist, requirements: [], findings: [f], edgeCases: [], breakingChanges: [], impact: [], performance: [], contracts: { endpoints: [], dbObjects: [], models: [], config: [] }, tests: { required: false, casesProvided: false, resultsProvided: false, total: null, passed: null, failed: null, evidence: "" }, conversation: { summary: "", openPoints: [] }, positives: [], testing: [], stats: {}, partial: true, area, repo: pr.repo, number: pr.number, url: pr.url, title: pr.title || "", sha: "" };
 }
@@ -488,7 +497,15 @@ function resetDraft(key) {
 
 // ---------- Comment bodies ----------
 function mdFindings(list) {
-  return list.map((f, i) => `${i + 1}. **${f.severity}**${f.label && f.label !== "issue" ? ` (${f.label})` : ""} — \`${f.file || "?"}${f.line ? ":" + f.line : ""}\`${f.confidence === "low" ? " _(low confidence)_" : ""}\n   ${String(f.text || "").replace(/\n/g, "\n   ")}${f.evidence ? `\n   > \`${String(f.evidence).replace(/`/g, "'").replace(/\n/g, " ")}\`` : ""}${f.suggestion ? `\n   *Suggested fix:* ${String(f.suggestion).replace(/\n/g, "\n   ")}` : ""}`);
+  return list.map((f, i) => {
+    const opts = [...new Set([f.suggestion, ...(f.solutions || [])].map(x => String(x || "").trim()).filter(Boolean))];
+    const sev = f.severity === "blocker" || f.severity === "high" ? "🔴" : f.severity === "medium" ? "🟠" : "🔹";
+    const L = [`${i + 1}. ${sev} **${f.severity}** · \`${f.file || "?"}${f.line ? ":" + f.line : ""}\`${f.confidence === "low" ? " _(please confirm)_" : ""}`, `   ${String(f.text || "").replace(/\n/g, "\n   ")}`];
+    if (f.evidence) L.push(`   > \`${String(f.evidence).replace(/`/g, "'").replace(/\n/g, " ")}\``);
+    if (opts.length === 1) L.push(`   **Fix:** ${opts[0].replace(/\n/g, " ")}`);
+    else if (opts.length > 1) L.push("   **Fix options:**", ...opts.map((o, j) => `   ${String.fromCharCode(97 + j)}. ${o.replace(/\n/g, " ")}`));
+    return L.join("\n");
+  });
 }
 const ICON = { pass: "✅ Pass", concern: "⚠️ Check", fail: "❌ Fail", na: "➖ N/A" };
 const cell = x => String(x || "").replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ").trim();
@@ -536,55 +553,70 @@ function mdChecks(pp) {
   if (!rows.length) return [];
   return ["### What was checked", "", "| Check | Result | Notes |", "|---|---|---|", ...rows];
 }
-function mdFindingsSection(pp) {
-  const all = (pp.findings || []).filter(f => f.label !== "praise");
-  const must = all.filter(f => HIGH.has(f.severity)), should = all.filter(f => f.severity === "medium"), minor = all.filter(f => f.severity === "low" || f.severity === "nit");
-  const L = ["## Review findings"];
-  if (must.length) L.push("", `### Must fix (${must.length})`, ...mdFindings(must));
-  if (should.length) L.push("", `### Should fix (${should.length})`, ...mdFindings(should));
-  if (minor.length) L.push("", `### Minor (${minor.length})`, ...mdFindings(minor));
-  const open = (pp.conversation?.openPoints || []).filter(p => p.status !== "resolved");
-  if (open.length) L.push("", "### Open PR comments", ...open.map(p => `- ${p.status === "open" ? "❌ open" : "⚠️ unclear"} — ${p.author ? p.author + ": " : ""}${p.point}${p.note ? " (" + p.note + ")" : ""}`));
-  L.push("", ...mdChecks(pp));
-  return L.join("\n");
+function failedChecks(pp) {
+  return CHECKS.map(([id, label]) => ({ id, label, c: pp.checklist?.[id] })).filter(x => x.c && (x.c.status === "fail" || x.c.status === "concern"));
 }
+function mdChecksLine(pp) {
+  const applicable = Object.values(pp.checklist || {}).filter(c => c.status !== "na"), passed = applicable.filter(c => c.status === "pass").length;
+  return applicable.length ? `${passed}/${applicable.length} checks passed` : "";
+}
+// What must change, nothing else: blocking findings with fix options, the failed checks, breaking changes, then optional notes folded away.
+function blockingParts(pp) {
+  const all = (pp.findings || []).filter(f => f.label !== "praise"), must = all.filter(BLOCKS), optional = all.filter(f => !BLOCKS(f));
+  const P = { mustFix: "", failedChecks: "", apiTests: "", breaking: "", impact: "", optional: "", openPoints: "" };
+  if (must.length) P.mustFix = [`### Must fix before merge (${must.length})`, "", ...mdFindings(must)].join("\n");
+  const fc = failedChecks(pp);
+  if (fc.length) P.failedChecks = ["### Checks that did not pass", "", "| Check | Result | Why |", "|---|---|---|", ...fc.map(x => `| ${x.label} | ${ICON[x.c.status]} | ${cell(x.c.note) || "—"} |`)].join("\n");
+  const t = pp.tests;
+  if (t?.required && (!t.casesProvided || !t.resultsProvided || t.failed > 0 || t.passed == null)) P.apiTests = `**API tests:** ${testsLine(t).replace(/^[^A-Za-z0-9]+/u, "")}${t.evidence ? " — " + t.evidence : ""}`;
+  if ((pp.breakingChanges || []).length) P.breaking = ["### ⚠️ Breaking changes", ...pp.breakingChanges.map(x => `- ${x}`)].join("\n");
+  if ((pp.impact || []).length) P.impact = ["### Impacted areas to cover", ...pp.impact.slice(0, 6).map(x => `- ${x}`)].join("\n");
+  if (optional.length) P.optional = [`<details><summary>Optional improvements (${optional.length}, do not block)</summary>`, "", ...mdFindings(optional), "", "</details>"].join("\n");
+  return P;
+}
+function mdBlocking(pp) {
+  const P = blockingParts(pp);
+  return [P.mustFix, P.failedChecks, P.apiTests, P.breaking, P.impact, P.optional].filter(Boolean).join("\n\n").split("\n");
+}
+function mdFindingsSection(pp) { return ["## Review findings", "", ...mdBlocking(pp)].join("\n"); }
+function mdApprovedLine(pp) {
+  const t = pp.tests, parts = [mdChecksLine(pp)];
+  if (t?.required && t.passed != null) parts.push(`API tests ${t.passed}/${t.total ?? t.passed + (t.failed || 0)} passed`);
+  parts.push("no breaking changes", "no open comments");
+  return "**Checked:** " + parts.filter(Boolean).join(" · ");
+}
+// GitHub review body from templates/github/*.md. Placeholders: {{key}} {{area}} {{prNumber}} {{prTitle}} {{prUrl}} {{reason}} {{summary}} {{checked}} {{risk}} {{checks}} {{tests}} {{date}}
+// and the blocks {{mustFix}} {{failedChecks}} {{apiTests}} {{breaking}} {{impact}} {{optional}} {{openPoints}} (empty blocks disappear).
 function mdReview(key, data, pp, verdict) {
-  const approved = verdict === "approve";
-  const must = pp.findings.filter(f => HIGH.has(f.severity)), should = pp.findings.filter(f => f.severity === "medium"), minor = pp.findings.filter(f => f.severity === "low" || f.severity === "nit");
-  const head = `## Code review · ${key} · ${AREA_LABEL[pp.area]} #${pp.number}`;
-  const L = [head, "", approved ? "✅ **Approved**" : "❌ **Changes requested**"];
+  const tpl = loadTemplate("github", verdict, pp.area);
+  if (!tpl) return mdReviewBuiltin(key, data, pp, verdict);
+  const P = blockingParts(pp), must = (pp.findings || []).filter(BLOCKS), opt = (pp.findings || []).filter(f => f.label !== "praise" && !BLOCKS(f));
+  if (verdict === "approve") {
+    P.openPoints = must.length ? [`### Open points (approved by the reviewer anyway) (${must.length})`, "", ...mdFindings(must)].join("\n") : "";
+    P.optional = opt.length ? [`<details><summary>Optional improvements (${opt.length})</summary>`, "", ...mdFindings(opt), "", "</details>"].join("\n") : "";
+  }
+  const vals = { ...P, key, area: AREA_LABEL[pp.area] || pp.area, prNumber: pp.number, prTitle: String(pp.title || "").replace(/\s+/g, " "), prUrl: pp.url || "",
+    reason: pp.verdictReason || "", summary: pp.approvalSummary || pp.whatChanged || "No open issues found.", checked: mdApprovedLine(pp),
+    risk: pp.risk?.level ? upper1(pp.risk.level) : "n/a", checks: mdChecksLine(pp) || "n/a", tests: pp.tests?.required ? testsLine(pp.tests).replace(/^[^A-Za-z0-9]+/u, "") : "not required", date: new Date().toISOString().slice(0, 10) };
+  return tpl.replace(/\{\{(\w+)\}\}/g, (m, k) => k in vals ? String(vals[k] ?? "") : m).replace(/\n{3,}/g, "\n\n").trim();
+}
+function mdReviewBuiltin(key, data, pp, verdict) {
+  const approved = verdict === "approve", must = (pp.findings || []).filter(BLOCKS);
+  const head = `## ${approved ? "✅ Approved" : "🔴 Changes requested"} · ${key} · ${AREA_LABEL[pp.area]} #${pp.number}`;
   if (approved) {
-    // Short form: two lines on what was approved, the metrics, the checks, and only non-blocking notes.
-    L.push("", pp.approvalSummary || pp.whatChanged || "_No summary available._", "", ...mdMetrics(pp), "", ...mdChecks(pp));
-    if (must.length) L.push("", `### Open points (approved by the reviewer anyway) (${must.length})`, ...mdFindings(must));
-    if (should.length) L.push("", `### Non-blocking: should fix (${should.length})`, ...mdFindings(should));
-    if (minor.length) L.push("", `### Non-blocking: minor (${minor.length})`, ...mdFindings(minor));
-    if (pp.conversation?.openPoints?.length) L.push("", "### PR comments reviewed", ...pp.conversation.openPoints.map(p => `- ${p.status === "resolved" ? "✅ resolved" : p.status === "open" ? "❌ open" : "⚠️ unclear"} — ${p.author ? p.author + ": " : ""}${p.point}${p.note ? " (" + p.note + ")" : ""}`));
-    if (pp.testing?.length) L.push("", "### Suggested testing for QA", ...pp.testing.slice(0, 5).map(x => `- ${x}`));
+    const L = [head, "", pp.approvalSummary || pp.whatChanged || "No open issues found.", "", mdApprovedLine(pp)];
+    if (must.length) L.push("", `### Open points (approved by the reviewer anyway) (${must.length})`, "", ...mdFindings(must));
+    const optional = (pp.findings || []).filter(f => f.label !== "praise" && !BLOCKS(f));
+    if (optional.length) L.push("", `<details><summary>Optional improvements (${optional.length})</summary>`, "", ...mdFindings(optional), "", "</details>");
     return L.join("\n");
   }
-  L.push("", pp.verdictReason ? `> ${pp.verdictReason}` : "", "", "### What changed", pp.whatChanged || "_No summary available._", "", ...mdMetrics(pp), "");
-  if (must.length) L.push(`### Must fix (${must.length})`, ...mdFindings(must), "");
-  if (should.length) L.push(`### Should fix (${should.length})`, ...mdFindings(should), "");
-  if (minor.length) L.push(`### Minor (${minor.length})`, ...mdFindings(minor), "");
-  L.push(...mdChecks(pp));
-  const tests = pp.tests;
-  if (tests?.required && tests.evidence) L.push("", `**Tests:** ${tests.evidence}`);
-  if (pp.conversation?.openPoints?.length) L.push("", "### PR comments reviewed", ...pp.conversation.openPoints.map(p => `- ${p.status === "resolved" ? "✅ resolved" : p.status === "open" ? "❌ open" : "⚠️ unclear"} — ${p.author ? p.author + ": " : ""}${p.point}${p.note ? " (" + p.note + ")" : ""}`));
-  const bullets = (title, list) => { if (list?.length) L.push("", `### ${title}`, ...list.map(x => `- ${x}`)); };
-  bullets("⚠️ Breaking changes", pp.breakingChanges);
-  bullets("Edge cases", pp.edgeCases);
-  bullets("Impact", pp.impact);
-  bullets("Performance", pp.performance);
-  bullets("What looks good", pp.positives);
-  bullets("Suggested testing", pp.testing);
-  return L.join("\n");
+  return [head, "", pp.verdictReason ? `> ${pp.verdictReason}` : "", "", ...mdBlocking(pp)].join("\n");
 }
 function mdLead(data) {
   const L = [];
   if (data.crossPr?.length) L.push("", "### Cross-PR notes", ...data.crossPr.map(x => `- ${x}`));
   if (data.mergeOrder) L.push("", `**Suggested merge order:** ${data.mergeOrder}`);
-  return L.join("\n");
+  return L.length ? "\n" + L.join("\n") : "";
 }
 function jiraSummaryDoc(key, verdict, data, results) {
   const approved = verdict === "approve";
@@ -598,10 +630,10 @@ function jiraSummaryDoc(key, verdict, data, results) {
     out.push(P(cap(pp.verdict === "approve" && pp.approvalSummary ? pp.approvalSummary : (pp.whatChanged || ""), 300)));
     const bits = [];
     if (checks.length) bits.push(`checks ${checks.filter(c => c.status === "pass").length}/${checks.length} passed`);
-    bits.push(`findings: ${n.blocker + n.high} must fix, ${n.medium} should fix, ${n.low + n.nit} minor`);
+    bits.push(`findings: ${n.blocker + n.high + n.medium} must fix, ${n.low + n.nit} optional`);
     if (pp.tests?.required) bits.push(`tests: ${testsLine(pp.tests).replace(/[✅❌⚠️]/gu, "").trim()}`);
     out.push(P(bits.join(" · ")));
-    const must = (pp.findings || []).filter(f => HIGH.has(f.severity));
+    const must = (pp.findings || []).filter(f => BLOCKS(f));
     if (must.length) out.push(UL(must.slice(0, 5).map(f => `${f.file && f.file !== "PR" ? f.file + (f.line ? ":" + f.line : "") + " — " : ""}${cap(f.text, 160)}`)));
     if (must.length > 5) out.push(P(`+${must.length - 5} more must-fix items.`));
   }
@@ -612,7 +644,7 @@ function jiraSummaryDoc(key, verdict, data, results) {
 }
 
 // ---------- Jira comment templates (templates/*.md) ----------
-const TEMPLATE_FILES = { approve: "jira-approved.md", request_changes: "jira-changes-requested.md" };
+const TEMPLATE_FILES = { approve: "approved.md", request_changes: "changes-requested.md" };
 const clean = v => String(v ?? "").replace(/[*\[\]]/g, "").replace(/\s+/g, " ").trim();
 function inlineAdf(text) {
   const out = [], re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
@@ -642,32 +674,40 @@ function templateToAdf(md) {
   flushPara(); flushList();
   return out;
 }
-function loadTemplate(verdict) {
-  const file = join(HERE, "templates", TEMPLATE_FILES[verdict === "approve" ? "approve" : "request_changes"]);
-  try { return readFileSync(file, "utf8"); } catch { return null; }
+// templates/<jira|github>/<approved|changes-requested>[-<area>].md; the area file wins, the generic file is the fallback.
+function loadTemplate(kind, verdict, area) {
+  const base = TEMPLATE_FILES[verdict === "approve" ? "approve" : "request_changes"];
+  for (const name of [area ? base.replace(/\.md$/, "-" + area + ".md") : null, base]) {
+    if (!name) continue;
+    try { return readFileSync(join(HERE, "templates", kind, name), "utf8").replace(/\r\n/g, "\n"); } catch { /* try the generic one */ }
+  }
+  return null;
 }
 let myName = "";
 async function reviewerName() { try { return (myName ||= (myJira ||= (await jira("/rest/api/3/myself")).displayName || "")); } catch { return "the reviewer"; } }
 // info: { key, area, pr: {number,url,title,author}, pp (AI review of that PR, optional), verdict, reviewUrl, note }
 async function jiraTemplateText(info) {
   const { key, area, pr, pp, verdict, reviewUrl, note } = info;
-  const tpl = loadTemplate(verdict);
+  const tpl = loadTemplate("jira", verdict, area), lead = info.lead || {};
   const n = sevCounts(pp?.findings || []);
   const checks = Object.values(pp?.checklist || {}).filter(c => c.status !== "na");
-  let issues = (pp?.findings || []).filter(f => f.label !== "praise").sort((a, b) => ["blocker", "high", "medium", "low", "nit"].indexOf(a.severity) - ["blocker", "high", "medium", "low", "nit"].indexOf(b.severity)).slice(0, 8)
-    .map(f => "* " + clean((f.file && f.file !== "PR" ? f.file + (f.line ? ":" + f.line : "") + " - " : "") + cap(f.text, 220) + (HIGH.has(f.severity) ? "" : " (" + f.severity + ")")));
+  let issues = (pp?.findings || []).filter(BLOCKS).sort((a, b) => ["blocker", "high", "medium", "low", "nit"].indexOf(a.severity) - ["blocker", "high", "medium", "low", "nit"].indexOf(b.severity)).slice(0, 6)
+    .map(f => "* " + clean((f.file && f.file !== "PR" ? f.file + (f.line ? ":" + f.line : "") + " - " : "") + cap(f.text, 220) + (BLOCKS(f) ? "" : " (" + f.severity + ")")));
   const open = (pp?.conversation?.openPoints || []).filter(p => p.status !== "resolved");
   if (!issues.length) issues = open.slice(0, 8).map(p => "* " + clean("Open PR comment" + (p.author ? " from " + p.author : "") + ": " + cap(p.point, 200)));
   if (!issues.length && note) issues = ["* " + clean(cap(note, 300))];
   if (!issues.length) issues = ["* See the review comments on the PR for the details."];
-  const n8 = (pp?.findings || []).filter(f => f.label !== "praise").length;
-  if (n8 > 8) issues.push("* " + (n8 - 8) + " more findings are in the GitHub review.");
+  const n8 = (pp?.findings || []).filter(BLOCKS).length;
+  if (n8 > 6) issues.push("* " + (n8 - 6) + " more are in the GitHub review.");
   const comments = clean(note || (verdict === "approve" ? pp?.approvalSummary : pp?.verdictReason) || "None.");
   const vals = {
     key, area: AREA_LABEL[area] || area, prNumber: pr.number, prTitle: clean(cap(pr.title || "", 90)), prUrl: pr.url || "",
     author: clean(pr.authorName || pr.author || "unknown"), risk: pp?.risk?.level ? upper1(pp.risk.level) : "n/a",
     checks: checks.length ? checks.filter(c => c.status === "pass").length + " of " + checks.length + " passed" : "n/a",
-    findings: pp ? n.blocker + n.high + " must fix · " + (n.medium) + " should fix · " + (n.low + n.nit) + " minor" : "n/a",
+    findings: pp ? (n.blocker + n.high + n.medium) + " must fix · " + (n.low + n.nit) + " optional" : "n/a",
+    blocking: pp ? n.blocker + n.high + n.medium : 0,
+    failedChecks: pp ? failedChecks(pp).map(x => x.label).join(", ") || "none" : "n/a",
+    mergeOrder: clean(lead.mergeOrder || "n/a"), crossRepo: clean((lead.crossPr || []).slice(0, 3).join(" | ") || "No cross-repo issues found"),
     tests: pp?.tests?.required ? clean(testsLine(pp.tests).replace(/[✅❌⚠️]/gu, "")) : "not required",
     reviewUrl: reviewUrl || pr.url || "", reviewer: clean(await reviewerName()), date: new Date().toISOString().slice(0, 10), comments,
   };
@@ -684,7 +724,7 @@ async function jiraReviewDoc(key, t, verdict, data, results) {
     if (!res?.posted) continue;
     const pr = t.prs?.[pp.area] || {};
     if (out.length) out.push({ type: "rule" });
-    out.push(...await jiraTemplateDoc({ key, area: pp.area, pr: { ...pr, number: pp.number, url: pp.url || pr.url, title: pp.title || pr.title }, pp, verdict, reviewUrl: res.url }));
+    out.push(...await jiraTemplateDoc({ key, area: pp.area, pr: { ...pr, number: pp.number, url: pp.url || pr.url, title: pp.title || pr.title }, pp, verdict, reviewUrl: res.url, lead: data }));
   }
   if (data.crossPr?.length) out.push(P(B("Cross-PR: "), data.crossPr.slice(0, 3).map(x => cap(x, 160)).join(" | ")));
   if (data.mergeOrder) out.push(P(B("Merge order: "), cap(data.mergeOrder, 200)));
@@ -758,9 +798,31 @@ async function submitReview(pr, live, event, body) {
     throw e;
   }
 }
+const devBody = (key, data, pp, sha) => mdReview(key, data, pp, pp.verdict === "approve" ? "approve" : "request_changes")
+  .replace("✅ Approved ·", "✅ Looks ready for review ·").replace("🔴 Changes requested ·", "🔧 Please fix before review ·")
+  + mdLead(data) + `\n\n<sub>Advisory check at \`${(sha || "").slice(0, 7)}\` by Code Review Bot (rules ${data.rubric || "v0"}) while the ticket is in development. It does not approve or block the PR. Fix, push, and ask for a re-check.</sub>`;
+async function postDevCheck(key) {
+  const t = state.tickets[key], data = t.reviewData, results = [];
+  for (const pp of data.perPr || []) {
+    const pr = AREAS.map(a => t.prs?.[a]).find(p => p && p.repo === pp.repo && p.number === pp.number);
+    if (!pr) { results.push({ area: pp.area, posted: false, message: "PR no longer linked to this ticket" }); continue; }
+    try {
+      const live = await prInfo(pr.repo, pr.number);
+      if (live.state !== "open") { results.push({ area: pp.area, posted: false, message: `PR is ${live.state}` }); continue; }
+      const r = await gh(`/repos/${pr.repo}/issues/${pr.number}/comments`, { method: "POST", body: { body: cap(devBody(key, data, pp, live.sha), 64000) } });
+      results.push({ area: pp.area, posted: true, event: "COMMENT", url: r.html_url });
+    } catch (e) { results.push({ area: pp.area, posted: false, message: e.message }); }
+  }
+  t.posted = { at: now(), verdict: data.verdict, dev: true, results, jira: null, assign: null, worklogs: [] };
+  if (results.some(r => r.posted)) t.review = { state: "posted", verdict: data.verdict };
+  for (const a of AREAS) if (t.prs?.[a]?.number) { try { t.threads = { ...(t.threads || {}), [a]: await fetchThread(t.prs[a]) }; } catch { /* ignore */ } }
+  save();
+  return t.posted;
+}
 async function postTicket(key, verdict) {
   const t = state.tickets[key];
   if (!t?.reviewData) throw new Error("no review draft");
+  if (t.mode === "dev") return postDevCheck(key);
   if (verdict !== "approve" && verdict !== "request_changes") throw new Error("invalid verdict");
   const data = t.reviewData, results = [];
   for (const pp of data.perPr || []) {
@@ -805,6 +867,7 @@ async function prAction(key, { area, action, body, replyTo, replyKind, after }) 
   if (!pr?.number) throw new Error("PR not found for this ticket");
   body = String(body || "").trim();
   if (!["approve", "request_changes", "comment"].includes(action)) throw new Error("invalid action");
+  if (t.mode === "dev" && action !== "comment") throw new Error("This ticket is still in development. Only comments are allowed until it moves to " + config.jiraStatus + ".");
   const pp = t.reviewData?.perPr?.find(x => x.area === area);
   const withFindings = action === "request_changes" && !replyTo && !!pp && (pp.findings || []).some(f => f.label !== "praise");
   if (action !== "approve" && !body && !withFindings) throw new Error("Write a comment or question first.");
@@ -817,7 +880,7 @@ async function prAction(key, { area, action, body, replyTo, replyKind, after }) 
   if (action === "approve" && !replyTo && pp) {
     const ch = Object.values(pp.checklist || {}).filter(c => c.status !== "na"), ok = ch.filter(c => c.status === "pass").length;
     whyApproved = [pp.approvalSummary || pp.whatChanged, ch.length ? `${ok} of ${ch.length} checks passed${testsLine(pp.tests || {}) && pp.tests?.required ? ", tests: " + testsLine(pp.tests) : ""}; ${sevCounts(pp.findings || []).blocker + sevCounts(pp.findings || []).high} blocking findings.` : ""].filter(Boolean).join(" ");
-    body = cap([body, body ? "" : null, "### Why this is approved", "", whyApproved, "", ...mdMetrics(pp), "", ...mdChecks(pp)].filter(x => x !== null).join("\n").trim(), 64000);
+    body = cap([body, body ? "" : null, "### Why this is approved", "", whyApproved, "", mdApprovedLine(pp)].filter(x => x !== null).join("\n").trim(), 64000);
   } else if (action === "approve" && !body) {
     body = "Approved: reviewed the changes and found no blocking issues.";
   }
@@ -838,7 +901,7 @@ async function prAction(key, { area, action, body, replyTo, replyKind, after }) 
     try {
       const fs = withFindings ? sevCounts(pp.findings) : null;
       const useTpl = !replyTo && action !== "comment";
-      if (useTpl) await addJiraComment(key, await jiraTemplateDoc({ key, area, pr, pp, verdict: action, reviewUrl: posted.url, note: userBody }));
+      if (useTpl) await addJiraComment(key, await jiraTemplateDoc({ key, area, pr, pp, verdict: action, reviewUrl: posted.url, note: userBody, lead: t.reviewData }));
       else await addJiraComment(key, [P(B(`Manual review: ${label} ${AREA_LABEL[area]} PR #${pr.number}`), " · ", LINK("open on GitHub", posted.url || pr.url)), ...(userBody ? [P(cap(userBody.replace(/\s+/g, " "), 300))] : []), ...(whyApproved ? [P("Why approved: " + cap(whyApproved, 400))] : []), ...(fs ? [P(`Findings: ${fs.blocker + fs.high} must fix, ${fs.medium} should fix, ${fs.low + fs.nit} minor. Full details are on GitHub.`)] : [])]);
       result.jira = { posted: true };
     } catch (e) { result.jira = { posted: false, message: String(e.message || e) }; }
@@ -859,7 +922,7 @@ const allowedHosts = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]);
 const sendJson = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 const readBody = req => new Promise(r => { let b = ""; req.on("data", d => { b += d; if (b.length > 2e5) req.destroy(); }); req.on("end", () => { try { r(JSON.parse(b || "{}")); } catch { r({}); } }); });
 let myJira = null;
-const view = () => ({ settings: state.settings, nextRunAt: nextScheduledRun(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, lastSyncAt: state.lastSyncAt, syncing: state.syncing, syncError: state.syncError, repos: config.repos, approveAssignee: config.approveAssignee, jiraStatus: config.jiraStatus, worklogDefault: Number(config.worklogMinutes) > 0 ? Number(config.worklogMinutes) : 10, requireTestsAreas: config.requireTestsAreas || ["api"], jiraConfigured: !!(env.JIRA_EMAIL && env.JIRA_API_TOKEN), tickets: Object.values(state.tickets).filter(t => !t.closed).sort((a, b) => a.key.localeCompare(b.key)) });
+const view = () => ({ settings: state.settings, nextRunAt: nextScheduledRun(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, lastSyncAt: state.lastSyncAt, syncing: state.syncing, syncError: state.syncError, repos: config.repos, approveAssignee: config.approveAssignee, jiraStatus: config.jiraStatus, worklogDefault: Number(config.worklogMinutes) > 0 ? Number(config.worklogMinutes) : 10, devStatuses: Array.isArray(config.devStatuses) ? config.devStatuses : [], devScope: config.devScope || "mine", requireTestsAreas: config.requireTestsAreas || ["api"], jiraConfigured: !!(env.JIRA_EMAIL && env.JIRA_API_TOKEN), tickets: Object.values(state.tickets).filter(t => !t.closed).sort((a, b) => a.key.localeCompare(b.key)) });
 const KEY = "([A-Z][A-Z0-9]+-\\d+)";
 
 http.createServer(async (req, res) => {
@@ -879,7 +942,7 @@ http.createServer(async (req, res) => {
       if (!pp || !pr) return sendJson(res, 404, { error: "Run the AI review first" });
       const verdict = url.searchParams.get("verdict") === "approve" ? "approve" : "request_changes";
       const github = mdReview(pv[1], t.reviewData, pp, verdict) + mdLead(t.reviewData) + `\n\n<sub>Reviewed at \`${(t.reviewData.headShas?.[area] || "").slice(0, 7)}\` with Code Review Bot (rules ${t.reviewData.rubric || "v0"}). Reply on this PR to discuss; I will read your answers.</sub>`;
-      const jiraText = await jiraTemplateText({ key: pv[1], area, pr: { ...pr, number: pp.number, url: pp.url || pr.url, title: pp.title || pr.title }, pp, verdict, reviewUrl: pr.url });
+      const jiraText = await jiraTemplateText({ key: pv[1], area, pr: { ...pr, number: pp.number, url: pp.url || pr.url, title: pp.title || pr.title }, pp, verdict, reviewUrl: pr.url, lead: t.reviewData });
       return sendJson(res, 200, { verdict, github, jira: jiraText });
     }
     if (req.method === "GET" && url.pathname === "/api/state") return sendJson(res, 200, view());

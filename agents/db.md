@@ -26,3 +26,12 @@ Note: the repo has no written review guide, so these checks are the usual SQL Se
 - Constraints and indexes are named consistently; every new foreign key column used in joins has an index; no duplicate or overlapping index.
 - Personal or sensitive data: no plain-text secrets, masked or encrypted as in neighbouring tables; seed data has no fixed environment-specific ids.
 - Re-run safety and rollback: look for them in the script itself. Test cases and test results are NOT required for DB PRs, so never raise a finding about missing tests or test evidence.
+
+
+## Architecture alignment (DB) - the `architecture` checklist item
+The database is the foundation: it ships first and must work with the OLD API still running.
+- Object layout follows the project: schema (`dbo`, `cso`, `cco`), `Znode_` prefixes, one object per file, included in the `.sqlproj`, refactorlog for renames.
+- Backward compatibility is mandatory: additive changes only (new nullable or defaulted columns, new optional parameters, new objects). Any drop, rename, type change or behaviour change of an object the live API uses is a `high` finding unless a compatibility shim and a deployment order are stated.
+- Every changed table, column and procedure must be traced to its consumers: name the API procedures, services and Admin/Webstore screens that depend on it, and say which are covered by a sibling PR. A DB change that no API change uses, or an API change that needs a DB object missing here, is a finding.
+- Set-based logic only (no cursors or loops over big sets), explicit transactions with `SET XACT_ABORT ON` and `TRY...CATCH`/`THROW` for multi-statement writes, idempotent and re-runnable scripts, an index for every new join or filter column, and no lock-heavy backfill on a large table without batching.
+Tests are NOT required for DB PRs.

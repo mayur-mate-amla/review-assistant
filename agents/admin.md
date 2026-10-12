@@ -23,3 +23,13 @@ Note: the repo has no written review guide, so these checks come from its struct
 - Minified or generated assets: if source scripts or styles change, the generated bundle is rebuilt and committed consistently (or the PR explains why not).
 - Tests are NOT required for admin PRs: never raise a finding about missing tests or test results.
 - UI changes: before/after screenshots are a nice-to-have (a `low` suggestion at most, never a blocker); keyboard and screen-reader basics (labels, focus order, contrast) are not made worse.
+
+
+## Architecture alignment (Admin) - the `architecture` checklist item
+Admin is a .NET (ASP.NET MVC) application with Razor views, HTML, CSS and jQuery/JavaScript, and it talks to the data only through the Znode API. Check:
+- MVC layering: controllers thin; calls go Controller -> Agent -> API client; no data access, no business rules and no API URL construction in controllers or views. View models are separate from API models and shaped for the view; views contain no logic beyond presentation.
+- API contract: every request and response the admin sends or reads matches the API PR (field names, required fields, nullability, status codes 200/201/204/4xx). If the API PR changed a contract and there is no matching admin change, or the reverse, that is a `high` finding naming the missing PR.
+- Razor and HTML: valid, accessible markup (labels tied to inputs, unique ids, no inline event handlers or inline styles where the project uses bundles), partials reused instead of copied, helpers used as in neighbouring views, all text through `.resx` resources, output encoded.
+- JavaScript and CSS: follows the project's module and bundle pattern (`bundleconfig.json`, `compilerconfig.json`), no new global variables, no duplicate handlers, selectors scoped to the screen, no new library when an existing one does the job.
+- Admin must keep working when the API is slow or returns an error: the user sees the standard notification, never a blank page.
+Tests are NOT required for admin PRs, but a UI or flow change must still be described well enough in the PR description for QA to verify it.

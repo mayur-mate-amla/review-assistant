@@ -34,3 +34,15 @@ For create/update endpoints also check: required and optional fields match the D
 - Logging: no tokens, passwords or personal data in log messages; errors carry enough context (ids, route) to debug.
 - Backward compatibility: existing V1 routes, parameters, response fields and status codes keep working; new request fields are optional.
 - Swagger/Stoplight documentation matches the new behaviour; resource strings used for user-facing messages.
+
+
+## Architecture alignment (API) - the `architecture` checklist item
+The API is the contract owner for Admin and Webstore, and it sits on the DB. Check:
+- Layering is respected: Controller -> Cache -> Service -> Data access. Controllers hold no business logic or SQL; services do not call controllers; no DB access from controllers or cache classes. A new feature follows the neighbouring feature's folder and naming layout.
+- .NET standards: async end to end, DI through the existing registrations with correct lifetimes, `IZnodeLogging` for logging, AutoMapper for mapping, no static mutable state, no `Thread.Sleep`, nullable and `using`/dispose handled, no business rules in model classes.
+- Contract ownership: any new or changed endpoint, request or response model is versioned correctly (V1 stays untouched, new behaviour goes to V2 or is purely additive with optional fields), documented in Swagger, and has a matching change in the consuming repos (Admin client and `packages/clients` / `packages/types` in Webstore). A contract change with no consumer PR is a `high` finding: say which consumer is missing.
+- DB coupling: every stored procedure, table or column the code now relies on exists in the DB PR or already in the database. A dependency on an object that no PR creates is a `high` finding. The API must work with the old and the new database during the deployment window when the DB PR ships first.
+- Cache correctness: cache keys include portal, locale and catalog; writes invalidate the right keys.
+
+## Tests are a hard gate (API)
+The PR is `request_changes` unless ALL of these hold: test cases exist for every changed or new endpoint and service method; the results are shown on the GitHub PR; every executed case passed (`failed` = 0); no case is skipped, ignored or commented out. Check the cases cover: success, validation failure (400), not found (404), unauthorized or forbidden (403), empty result (204), the edge cases of this change, and, for a changed existing behaviour, a regression case for the old behaviour. Name every scenario that has no case in `tests.evidence` and in the finding's `solutions`. Fill `tests.total`, `tests.passed` and `tests.failed` exactly from the results.

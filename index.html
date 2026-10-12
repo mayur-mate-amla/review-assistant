@@ -362,7 +362,7 @@ dl.kv{margin:0;display:grid;grid-template-columns:150px 1fr;gap:8px 12px}dl.kv d
 (function(){
 "use strict";
 var AREAS=["admin","api","webstore","db"],LABEL={admin:"Admin",api:"API",webstore:"Webstore",db:"DB"};
-var CHECKS=[["requirements","Requirements","Requirements"],["correctness","Functional correctness","Correctness"],["edgeCases","Edge cases","Edge cases"],["security","Security","Security"],["errorHandling","Error handling & logging","Error handling"],["standards","Coding standards","Standards"],["performance","Performance","Performance"],["breakingChanges","Breaking changes","Breaking changes"],["impact","Impact / regression scope","Impact"],["conversation","PR comments & discussion","PR comments"],["tests","Tests","Unit tests"],["maintainability","Maintainability","Maintainability"]];
+var CHECKS=[["requirements","Requirements","Requirements"],["correctness","Functional correctness","Correctness"],["edgeCases","Edge cases","Edge cases"],["security","Security","Security"],["errorHandling","Error handling & logging","Error handling"],["standards","Coding standards","Standards"],["architecture","Architecture alignment","Architecture"],["performance","Performance","Performance"],["breakingChanges","Breaking changes","Breaking changes"],["impact","Impact / regression scope","Impact"],["conversation","PR comments & discussion","PR comments"],["tests","Tests","Unit tests"],["maintainability","Maintainability","Maintainability"]];
 var SEVRANK={blocker:5,high:4,medium:3,low:2,nit:1};
 var STATUS_OPTS=[["","Status"],["needs","Needs review"],["progress","In progress"],["ready","Ready to post"],["posted","Posted"]];
 var SORTS=[["wait","Oldest waiting"],["new","Newest first"],["sev","Highest severity"],["cmt","Most comments"],["key","Jira key"]];
@@ -451,7 +451,7 @@ function renderList(){
   list.forEach(function(t){
     var tr=el("tr",t.key===sel?"active":"");tr.tabIndex=0;tr.setAttribute("aria-selected",t.key===sel?"true":"false");tr.dataset.key=t.key;
     var c0=el("td","ck"),cb=el("input","cb");cb.type="checkbox";cb.checked=!!checked[t.key];cb.setAttribute("aria-label","Select "+t.key);cb.addEventListener("click",function(e){e.stopPropagation()});cb.addEventListener("change",function(){if(cb.checked)checked[t.key]=1;else delete checked[t.key];renderBulk()});c0.appendChild(cb);tr.appendChild(c0);
-    var c1=el("td","tt");c1.appendChild(el("span","key",t.key));c1.appendChild(el("div","ttl",t.summary||""));
+    var c1=el("td","tt");c1.appendChild(el("span","key",t.key));if(t.mode==="dev"){var dv=el("span","chip violet round",t.jiraStatus||"In dev");dv.style.marginLeft="8px";dv.title="Still in development: advisory check only";c1.appendChild(dv)}c1.appendChild(el("div","ttl",t.summary||""));
     var meta=el("div","meta"),ch=chipFor(t);add(meta,el("span","chip "+ch[0],ch[1].split(" · ")[0]),el("span","wait",ago(t.waitingSince||t.updatedAt)));c1.appendChild(meta);tr.appendChild(c1);
     var c2=el("td","col-repo"),rp=el("div","repos");var prs=prList(t);
     if(!prs.length)rp.appendChild(el("span","repo muted","No PR"));
@@ -501,7 +501,7 @@ function renderPanel(){
   var ph=el("div","ph"),pk=el("div","pk");
   var back=el("button","btn sm");back.type="button";back.appendChild(ic("right","sm back"));back.appendChild(document.createTextNode("All reviews"));back.addEventListener("click",function(){go(view,null)});pk.appendChild(back);
   pk.appendChild(el("span","k",t.key));var jl=ext(t.jiraUrl,"","btn icon sm ghost");jl.setAttribute("aria-label","Open "+t.key+" in Jira");jl.title="Open in Jira";jl.appendChild(ic("ext","sm"));pk.appendChild(jl);
-  pk.appendChild(el("span","sp"));var ch=chipFor(t);pk.appendChild(el("span","chip "+ch[0],ch[1].split(" · ")[0]));
+  if(t.mode==="dev")pk.appendChild(el("span","chip violet",(t.jiraStatus||"In dev")+" · dev check"));pk.appendChild(el("span","sp"));var ch=chipFor(t);pk.appendChild(el("span","chip "+ch[0],ch[1].split(" · ")[0]));
   var mw=el("div","rel"),mb=el("button","btn icon sm ghost");mb.type="button";mb.setAttribute("aria-label","More actions");mb.setAttribute("aria-haspopup","menu");mb.appendChild(ic("more"));
   var mm=el("div","menu");mm.hidden=true;mm.setAttribute("role","menu");
   function mi(txt,fn,dis){var b=el("button","",txt);b.type="button";b.setAttribute("role","menuitem");b.disabled=!!dis;b.addEventListener("click",function(){mm.hidden=true;fn()});mm.appendChild(b)}
@@ -558,7 +558,7 @@ function previewSection(body,t,area,pp){
   var id=t.key+"|"+area,v=pvVerdict[id]||pp.verdict||"request_changes";
   var bar=el("div","row"),seg=el("div","seg");
   [["request_changes","Request changes"],["approve","Approve"]].forEach(function(o){var b=el("button","",o[1]);b.type="button";b.setAttribute("aria-pressed",v===o[0]?"true":"false");b.addEventListener("click",function(){pvVerdict[id]=o[0];renderPanel()});seg.appendChild(b)});
-  add(bar,el("span","muted","Preview for"),seg,el("span","muted","Edit the Jira wording in the templates folder."));body.appendChild(bar);
+  add(bar,el("span","muted","Preview for"),seg,el("span","muted","Edit the wording in the templates/github and templates/jira folders."));body.appendChild(bar);
   var grid=el("div","pvgrid"),g=el("div","card pv"),j=el("div","card pv");
   var gh=el("h3");add(gh,ic("pr","sm"),"GitHub review");g.appendChild(gh);var gb=el("div","pvbody");gb.appendChild(el("p","muted","Loading preview…"));g.appendChild(gb);
   var jh=el("h3");add(jh,ic("comment","sm"),"Jira comment");j.appendChild(jh);var jb=el("div","pvbody jira");jb.appendChild(el("p","muted","Loading preview…"));j.appendChild(jb);
@@ -579,6 +579,12 @@ function stateBanner(t,pp){
     else b.appendChild(el("span","muted","No AI review yet. It checks the diff, the Jira ticket and every PR comment."));
     row.appendChild(actionButton(st==="none"?"Review ticket":"Re-review","primary",function(){startReview(t)},"spark"));b.appendChild(row);return b}
   var verdict=rv&&rv.verdict;
+  if(t.mode==="dev"){
+    add(row,el("span","chip violet","Dev check"),el("span","chip "+(verdict==="approve"?"green":"amber"),verdict==="approve"?"Looks ready":"Fix before review"));
+    if(pp&&pp.risk)row.appendChild(el("span","chip "+(pp.risk.level==="high"?"red":pp.risk.level==="medium"?"amber":"green"),"Risk: "+upper1(pp.risk.level||"unknown")));
+    b.appendChild(row);b.appendChild(el("span","muted","This ticket is still in "+(t.jiraStatus||"development")+". The check is advisory: it posts one comment on the PR, with no approval, no change request, no Jira hand-off and no time log."));
+    var dr=el("div","row"),db=actionButton(st==="posted"?"Post check again":"Post dev check to PR","primary",function(){busy[t.key]=true;db.disabled=true;db.textContent="Posting…";api("/api/post/"+t.key,{verdict:verdict}).then(function(){toast("Dev check posted on the PR")}).catch(function(e){toast("Post failed: "+e.message,true)}).then(function(){delete busy[t.key];load(true)})},"send");db.disabled=!!busy[t.key];
+    add(dr,db,actionButton("Re-check","",function(){startReview(t)}),resetBtn(t));b.appendChild(dr);return b}
   add(row,el("span","chip "+(verdict==="approve"?"green":"red"),verdict==="approve"?"AI: Approve":"AI: Request changes"));
   if(pp&&pp.risk)row.appendChild(el("span","chip "+(pp.risk.level==="high"?"red":pp.risk.level==="medium"?"amber":"green"),"Risk: "+upper1(pp.risk.level||"unknown")));
   if(rv&&rv.rubric)row.appendChild(el("span","muted","rules "+rv.rubric));
@@ -644,7 +650,7 @@ function findingsTab(body,pp){
     h.appendChild(el("span","chip "+(sv==="blocker"||sv==="high"?"red":sv==="medium"?"amber":"blue"),upper1(sv)));
     var cat=CHECKS.filter(function(x){return x[0]===f.category})[0];if(cat)h.appendChild(el("span","tag",cat[1]));if(f.label&&f.label!=="issue")h.appendChild(el("span","tag",f.label));if(f.confidence==="low")h.appendChild(el("span","tag","low confidence"));
     d.appendChild(h);if(f.file&&f.file!=="PR")d.appendChild(el("div","loc",f.file+(f.line?":"+f.line:"")));
-    d.appendChild(el("p","",f.text||""));if(f.evidence)d.appendChild(el("code","ev",f.evidence));if(f.suggestion)d.appendChild(el("div","fix","Fix: "+f.suggestion));body.appendChild(d)})}
+    d.appendChild(el("p","",f.text||""));if(f.evidence)d.appendChild(el("code","ev",f.evidence));var fo=[];[f.suggestion].concat(f.solutions||[]).forEach(function(x){if(x&&fo.indexOf(x)<0)fo.push(x)});if(fo.length===1)d.appendChild(el("div","fix","Fix: "+fo[0]));else if(fo.length>1){d.appendChild(el("div","fix","Fix options:"));var ol=el("ol","plain");fo.forEach(function(x){ol.appendChild(el("li","",x))});d.appendChild(ol)};body.appendChild(d)})}
 
 function testsTab(body,pp){
   var c=el("div","card");
@@ -687,7 +693,7 @@ function renderComposer(t,area){
   if(!area){clear(box);return}
   $("panel").dataset.csig=csigOf(t,area);
   var id=t.key+"|"+area,rt=replyTo[id];
-  var d=drafts[id]||(drafts[id]={text:"",after:"handoff"});clear(box);
+  var d=drafts[id]||(drafts[id]={text:"",after:t.mode==="dev"?"none":"handoff"});clear(box);
   box.appendChild(el("h3","","Add your review · "+LABEL[area]+" #"+t.prs[area].number));
   if(rt){var r=el("div","rto");add(r,el("span","chip blue","Replying to @"+rt.author),actionButton("Cancel","ghost",function(){delete replyTo[id];renderComposer(t,area)}));box.appendChild(r)}
   var wrap=el("div","cmp");wrap.appendChild(avatar(me||"Me"));
@@ -708,7 +714,7 @@ function renderComposer(t,area){
     var payload={area:area,action:rt?"comment":action,body:d.text,after:d.after};if(rt){payload.replyTo=rt.id;payload.replyKind=rt.kind}
     api("/api/pr-action/"+t.key,payload).then(function(res){d.text="";delete replyTo[id];var msg=res.event+" sent"+(res.note?" ("+res.note+")":"");if(res.jira)msg+=" · Jira "+(res.jira.posted?"commented":"failed: "+res.jira.message);if(res.worklog&&!res.worklog.skipped)msg+=" · "+(res.worklog.posted?res.worklog.minutes+" min logged":"time not logged: "+res.worklog.message);if(res.assign)msg+=" · "+(res.assign.ok?"reassigned to "+res.assign.to:"not reassigned: "+res.assign.message);toast(msg)}).catch(function(e){toast("Could not send: "+e.message,true)}).then(function(){delete busy[id];btn.textContent=old;var cur=sel&&ticketOf(sel);if(cur&&cur.key===t.key)renderComposer(cur,curArea(cur));load(true)})}
   bR.addEventListener("click",function(){send("request_changes",bR)});bA.addEventListener("click",function(){send("approve",bA)});bS.addEventListener("click",function(){send("comment",bS)});
-  add(act,mo,bR,bA,bS);box.appendChild(act);sync()}
+  if(t.mode==="dev"){bS.textContent=rt?"Send reply":"Comment on PR";add(act,mo,bS)}else add(act,mo,bR,bA,bS);box.appendChild(act);sync()}
 
 /* ---------- settings ---------- */
 function fmtTime(tm){var p=tm.split(":"),h=+p[0];return (h%12||12)+":"+p[1]+" "+(h<12?"AM":"PM")}
@@ -742,7 +748,7 @@ function renderSettings(){
   var cur=lsGet("rb.theme")||"system";["system","light","dark"].forEach(function(k){var b=el("button","",upper1(k));b.type="button";b.setAttribute("aria-pressed",cur===k?"true":"false");b.addEventListener("click",function(){lsSet("rb.theme",k);applyTheme();renderSettings()});seg.appendChild(b)});add(r3,l3,seg);c2.appendChild(r3);w.appendChild(c2);
   var c3=el("div","card");c3.appendChild(el("h3","","Review rules (from config.json)"));var dl=el("dl","kv");
   function kv(k,val){add(dl,el("dt","",k),el("dd","",val))}
-  kv("Jira status",S.jiraStatus||"Code Review");kv("Approve hand-off",S.approveAssignee||"—");kv("Tests required for",(S.requireTestsAreas||["api"]).map(function(a){return LABEL[a]||a}).join(", "));
+  kv("Jira status",S.jiraStatus||"Code Review");kv("Dev check statuses",(S.devStatuses||[]).length?S.devStatuses.join(", ")+(S.devScope==="all"?" (anyone's tickets)":" (your tickets)"):"Off");kv("Approve hand-off",S.approveAssignee||"—");kv("Tests required for",(S.requireTestsAreas||["api"]).map(function(a){return LABEL[a]||a}).join(", "));
   AREAS.forEach(function(a){kv(LABEL[a]+" repo",(S.repos&&S.repos[a])||"—")});c3.appendChild(dl);c3.appendChild(el("p","muted","Edit config.json and restart the bot to change these."));w.appendChild(c3);v.appendChild(w)}
 function applyTheme(){var t=lsGet("rb.theme")||"system",r=document.documentElement;if(t==="system")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t)}
 
