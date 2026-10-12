@@ -41,7 +41,7 @@ button{cursor:pointer}
 .av.c1{background:#e0ecff;color:#1d4ed8}.av.c2{background:#fde7f3;color:#be185d}.av.c3{background:#dcfae6;color:#067647}.av.c4{background:#fef0c7;color:#b54708}.av.c5{background:#ece9fe;color:#5b45d6}
 .main{padding:18px 24px 20px;min-width:0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 #v-list{flex:1;min-height:0;display:flex;flex-direction:column}
-#v-settings{flex:1;min-height:0;overflow:auto}
+#v-settings,#v-history{flex:1;min-height:0;overflow:auto}
 .stats,.filters,.top,.notice{flex:none}
 .top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .top h1{margin:0;font-size:26px;line-height:1.2;letter-spacing:-.01em}.top .sub{color:var(--muted);font-size:14px;margin-top:2px}
@@ -193,6 +193,7 @@ ul.plain{margin:0;padding-left:18px}ul.plain li{margin:3px 0}
 .msghead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}.msghead b{color:var(--fg)}
 .msgbody{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px;font-size:13px}
 .muted{color:var(--muted)}
+.hist{display:flex;flex-direction:column;gap:12px;padding-bottom:20px}.hbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.hist .listbox{overflow:auto}.hist tbody tr:hover{background:none}.hdet{display:flex;flex-direction:column;gap:10px;padding:4px 4px 8px}.hrow{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)}.hrow p{margin:6px 0 0}
 .chip.off{opacity:.55}.chipx{border:0;background:none;color:inherit;padding:0;display:inline-grid;place-items:center;cursor:pointer}.chipx:hover{color:var(--bad)}
 /* full-page detail */
 .pk .btn{margin-right:4px}.ic.back{transform:rotate(180deg)}
@@ -353,6 +354,7 @@ dl.kv{margin:0;display:grid;grid-template-columns:150px 1fr;gap:8px 12px}dl.kv d
     </section>
 
     <section id="v-settings" hidden></section>
+    <section id="v-history" hidden></section>
   </div>
 </div>
 <div id="backdrop" hidden></div>
@@ -366,7 +368,7 @@ var CHECKS=[["requirements","Requirements","Requirements"],["correctness","Funct
 var SEVRANK={blocker:5,high:4,medium:3,low:2,nit:1};
 var STATUS_OPTS=[["","Status"],["needs","Needs review"],["progress","In progress"],["ready","Ready to post"],["posted","Posted"]];
 var SORTS=[["wait","Oldest waiting"],["new","Newest first"],["sev","Highest severity"],["cmt","Most comments"],["key","Jira key"]];
-var VIEWS={all:{t:"Code Review Queue",s:"Review, give feedback and help ship high quality code.",icon:"queue",name:"All Review"},settings:{t:"Settings",s:"Sync, appearance and review rules.",icon:"settings",name:"Settings"}};
+var VIEWS={all:{t:"Code Review Queue",s:"Review, give feedback and help ship high quality code.",icon:"queue",name:"All Review"},history:{t:"History",s:"Old tickets that left Code Review. Check what was reviewed, or clear them.",icon:"posted",name:"History"},settings:{t:"Settings",s:"Sync, appearance and review rules.",icon:"settings",name:"Settings"}};
 
 var S=null,last="",view="all",sel=null,tab="overview",selPr={},checked={},drafts={},replyTo={},busy={},armed={},me="",loaded=false,offline=false;
 var F={q:"",status:"",repo:"",from:"",sev:"",sort:"wait"};
@@ -426,12 +428,12 @@ function visible(){
   return list.sort(cmp)}
 
 /* ---------- routing ---------- */
-function parseHash(){var m=/^#\/(queue|mine|posted|all|settings)(?:\?t=([\w-]+))?/.exec(location.hash);view=m&&m[1]==="settings"?"settings":"all";sel=m&&m[2]?m[2]:null}
+function parseHash(){var m=/^#\/(queue|mine|posted|all|history|settings)(?:\?t=([\w-]+))?/.exec(location.hash);view=m&&m[1]==="settings"?"settings":m&&m[1]==="history"?"history":"all";sel=m&&m[2]?m[2]:null}
 function go(v,key){var h="#/"+v+(key?"?t="+encodeURIComponent(key):"");if(location.hash===h)renderAll();else location.hash=h}
 
 /* ---------- static pieces ---------- */
 function renderNav(){var nav=clear($("nav"));
-  ["all","settings"].forEach(function(k){var a=el("a");a.href="#/"+k;if(view===k)a.setAttribute("aria-current","page");add(a,ic(VIEWS[k].icon),el("span","",VIEWS[k].name));if(k==="all")a.appendChild(el("b","badge",String(S?S.tickets.length:0)));nav.appendChild(a)})}
+  ["all","history","settings"].forEach(function(k){var a=el("a");a.href="#/"+k;if(view===k)a.setAttribute("aria-current","page");add(a,ic(VIEWS[k].icon),el("span","",VIEWS[k].name));if(k==="all")a.appendChild(el("b","badge",String(S?S.tickets.length:0)));if(k==="history"&&S&&(S.archive||[]).length)a.appendChild(el("b","badge",String(S.archive.length)));nav.appendChild(a)})}
 function fillSelect(id,opts,val){var s=$(id);clear(s);opts.forEach(function(o){var op=el("option","",o[1]);op.value=o[0];if(o[0]===val)op.selected=true;s.appendChild(op)});s.classList.toggle("on",!!val&&id!=="f-sort")}
 function renderFilters(){
   fillSelect("f-status",STATUS_OPTS,F.status);
@@ -484,14 +486,14 @@ function curArea(t){var l=prList(t);if(!l.length)return null;var a=selPr[t.key];
 
 function actionButton(label,cls,fn,icn){var b=el("button","btn sm "+(cls||""));b.type="button";if(icn)b.appendChild(ic(icn,"sm"));b.appendChild(document.createTextNode(label));b.addEventListener("click",fn);return b}
 function resetBtn(t){var b=actionButton(armed[t.key]?"Click again to reset":"Reset draft","",function(){
-  if(!armed[t.key]){armed[t.key]=setTimeout(function(){delete armed[t.key];if(S&&view!=="settings"){renderList();renderPanel()}},5000);renderList();renderPanel();return}
+  if(!armed[t.key]){armed[t.key]=setTimeout(function(){delete armed[t.key];if(S&&view==="all"){renderList();renderPanel()}},5000);renderList();renderPanel();return}
   clearTimeout(armed[t.key]);delete armed[t.key];b.disabled=true;
   api("/api/reset/"+t.key).then(function(){toast("Draft for "+t.key+" was reset.")}).catch(function(e){toast("Could not reset: "+e.message,true)}).then(function(){load(true)})});b.title="Delete this draft so you can start a new review";return b}
 function startReview(t){return api("/api/review/"+t.key).then(function(){return load(true)}).catch(function(e){toast("Could not start review: "+e.message,true)})}
 
 function renderPanel(){
   var p=$("panel"),t=sel&&S&&ticketOf(sel);
-  var open=!!t&&view!=="settings";$("split").classList.toggle("open",open);p.hidden=!open;$("backdrop").hidden=true;$("filters").hidden=!open?false:true;
+  var open=!!t&&view==="all";$("split").classList.toggle("open",open);p.hidden=!open;$("backdrop").hidden=true;$("filters").hidden=!open?false:true;
   if(!open){clear(p);delete p.dataset.key;return}
   var area=curArea(t),pp=area?perPr(t,area):null,st=stCode(t);
   var oldBody=p.querySelector(".pscroll"),scroll=oldBody?oldBody.scrollTop:0,sameKey=p.dataset.key===t.key;
@@ -716,6 +718,40 @@ function renderComposer(t,area){
   bR.addEventListener("click",function(){send("request_changes",bR)});bA.addEventListener("click",function(){send("approve",bA)});bS.addEventListener("click",function(){send("comment",bS)});
   if(t.mode==="dev"){bS.textContent=rt?"Send reply":"Comment on PR";add(act,mo,bS)}else add(act,mo,bR,bA,bS);box.appendChild(act);sync()}
 
+/* ---------- history: old tickets that left Code Review ---------- */
+var hOpen={},hSel={},hArmed=null;
+function kb(n){return n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB"}
+function renderHistory(){
+  var v=clear($("v-history")),list=(S&&S.archive)||[],w=el("div","hist");
+  var bar=el("div","hbar"),info=el("div","hinfo");add(info,el("b","",list.length+" old ticket"+(list.length===1?"":"s")),el("span","muted"," · data.json is "+kb(S.dataBytes||0)+(list.length?" · these tickets use about "+kb(list.reduce(function(n,x){return n+x.bytes},0)):"")));bar.appendChild(info);
+  var keys=Object.keys(hSel).filter(function(k){return list.some(function(x){return x.key===k})});
+  function clearKeys(ks,label){if(hArmed!==label){hArmed=label;renderHistory();setTimeout(function(){if(hArmed===label){hArmed=null;if(view==="history")renderHistory()}},5000);return}hArmed=null;api("/api/archive/clear",ks==="all"?{all:true}:{keys:ks}).then(function(r){hSel={};toast("Cleared "+r.removed+" ticket"+(r.removed===1?"":"s"));return load(true)}).catch(function(e){toast("Could not clear: "+e.message,true)})}
+  var b1=actionButton(hArmed==="sel"?"Click again to clear "+keys.length:"Clear selected"+(keys.length?" ("+keys.length+")":""),"",function(){clearKeys(keys,"sel")});b1.disabled=!keys.length;
+  var b2=actionButton(hArmed==="all"?"Click again to clear all":"Clear all","bad",function(){clearKeys("all","all")});b2.disabled=!list.length;
+  var act=el("div","row");add(act,b1,b2);bar.appendChild(act);w.appendChild(bar);
+  w.appendChild(el("p","muted","Tickets move here when they leave "+(S.jiraStatus||"Code Review")+" (merged, moved on or reassigned). Clearing removes the saved review and comments from data.json; it can't be undone. A cleared ticket comes back, without its old review, if it returns to Code Review."));
+  if(!list.length){var em=el("div","card muted","Nothing here. Old tickets will show up when they leave Code Review.");w.appendChild(em);v.appendChild(w);return}
+  var card=el("div","listbox"),tb=el("table"),hd=el("tr");
+  var all=el("input","cb");all.type="checkbox";all.setAttribute("aria-label","Select all");all.checked=keys.length===list.length;all.addEventListener("change",function(){list.forEach(function(x){if(all.checked)hSel[x.key]=1;else delete hSel[x.key]});renderHistory()});var th0=el("th","ck");th0.appendChild(all);hd.appendChild(th0);
+  ["Ticket","Last review","Pull requests","Last updated","Size",""].forEach(function(x){hd.appendChild(el("th","",x))});tb.appendChild(el("thead")).appendChild(hd);
+  var body=el("tbody");
+  list.forEach(function(x){
+    var tr=el("tr");tr.style.cursor="default";var c0=el("td","ck"),cb=el("input","cb");cb.type="checkbox";cb.checked=!!hSel[x.key];cb.setAttribute("aria-label","Select "+x.key);cb.addEventListener("change",function(){if(cb.checked)hSel[x.key]=1;else delete hSel[x.key];renderHistory()});c0.appendChild(cb);tr.appendChild(c0);
+    var c1=el("td","tt"),kl=ext(x.jiraUrl,x.key,"key");c1.appendChild(kl);c1.appendChild(el("div","ttl",x.summary));tr.appendChild(c1);
+    var c2=el("td");var vd=x.postedVerdict||x.verdict;
+    if(x.reviewState==="none"||!vd)c2.appendChild(el("span","chip","Not reviewed"));else{c2.appendChild(el("span","chip "+(vd==="approve"?"green":"red"),(x.reviewState==="posted"?"Posted: ":"Draft: ")+(vd==="approve"?"approved":"changes requested")));var when2=x.postedAt||x.reviewedAt;if(when2)c2.appendChild(el("span","mini",when(when2)))}
+    tr.appendChild(c2);
+    var c3=el("td"),rp=el("div","repos");if(!x.prs.length)rp.appendChild(el("span","muted","No PR"));x.prs.forEach(function(p){var a=ext(p.url,LABEL[p.area]+" #"+p.number,"repo pill");rp.appendChild(a)});c3.appendChild(rp);tr.appendChild(c3);
+    tr.appendChild(el("td","",x.updatedAt?when(x.updatedAt):"—"));tr.appendChild(el("td","muted",kb(x.bytes)));
+    var c6=el("td","col-act"),ab=el("div","acts");
+    var det=actionButton(hOpen[x.key]?"Hide summary":"Old summary","",function(){hOpen[x.key]=!hOpen[x.key];renderHistory()});det.disabled=!x.perPr.length;if(!x.perPr.length)det.title="No review was saved for this ticket";
+    var one=actionButton(hArmed==="one:"+x.key?"Click again":"Clear","bad",function(){clearKeys([x.key],"one:"+x.key)});add(ab,det,one);c6.appendChild(ab);tr.appendChild(c6);body.appendChild(tr);
+    if(hOpen[x.key]){var dr=el("tr"),dc=el("td");dc.colSpan=7;var box=el("div","hdet");
+      x.perPr.forEach(function(p){var row=el("div","hrow");var h3=el("div","row");add(h3,ext(p.url,LABEL[p.area]+" #"+p.number,"key"),el("span","chip "+(p.verdict==="approve"?"green":"red"),p.verdict==="approve"?"Approved":"Changes requested"),el("span","muted",p.must+" must fix · "+p.optional+" optional"));row.appendChild(h3);
+        if(p.whatChanged)row.appendChild(el("p","",p.whatChanged));if(p.verdictReason)row.appendChild(el("p","muted","Reason: "+p.verdictReason));box.appendChild(row)});
+      dc.appendChild(box);dr.appendChild(dc);body.appendChild(dr)}});
+  tb.appendChild(body);card.appendChild(tb);w.appendChild(card);v.appendChild(w)}
+
 /* ---------- settings ---------- */
 function fmtTime(tm){var p=tm.split(":"),h=+p[0];return (h%12||12)+":"+p[1]+" "+(h<12?"AM":"PM")}
 function renderSettings(){
@@ -755,7 +791,7 @@ function applyTheme(){var t=lsGet("rb.theme")||"system",r=document.documentEleme
 /* ---------- top-level ---------- */
 function renderChrome(){
   var V=VIEWS[view];$("h1").textContent=V.t;$("sub").textContent=V.s;document.title=V.t;
-  var settings=view==="settings";$("v-list").hidden=settings;$("v-settings").hidden=!settings;
+  $("v-list").hidden=view!=="all";$("v-settings").hidden=view!=="settings";$("v-history").hidden=view!=="history";
   var live=$("live");live.className="live"+(offline?" off":S&&S.syncing?" sync":"");live.lastChild.textContent=offline?"Offline":S&&S.syncing?"Syncing":"Live";
   var sy=!!(S&&S.syncing);$("refresh").disabled=sy;$("synctxt").textContent=sy?"Syncing…":"Sync";$("syncic").setAttribute("class","ic"+(sy?" spin":""));
   $("syncinfo").textContent=S&&S.lastSyncAt?"Last sync "+ago(S.lastSyncAt)+" ago":"Not synced yet";
@@ -764,6 +800,7 @@ function renderChrome(){
 function renderAll(){
   if(!S)return;
   renderChrome();renderNav();
+  if(view==="history"){renderHistory();$("backdrop").hidden=true;$("split").classList.remove("open");return}
   if(view==="settings"){renderSettings();$("backdrop").hidden=true;$("split").classList.remove("open");return}
   renderFilters();renderList();renderPanel()}
 
@@ -789,7 +826,7 @@ document.addEventListener("keydown",function(e){
   if(e.key==="Escape"){var open=document.querySelector(".menu:not([hidden])");if(open){open.hidden=true;return}if(typingNow()){document.activeElement.blur();return}if(sel)go(view,null);return}
   if(typingNow()||e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key==="/"){e.preventDefault();$("gsearch").focus();return}
-  if((e.key==="j"||e.key==="k")&&S&&view!=="settings"){var l=visible();if(!l.length)return;var i=l.findIndex(function(t){return t.key===sel});i=e.key==="j"?Math.min(l.length-1,i+1):Math.max(0,i<0?0:i-1);go(view,l[i].key);var r=document.querySelector('tr[data-key="'+l[i].key+'"]');if(r)r.scrollIntoView({block:"nearest"})}});
+  if((e.key==="j"||e.key==="k")&&S&&view==="all"){var l=visible();if(!l.length)return;var i=l.findIndex(function(t){return t.key===sel});i=e.key==="j"?Math.min(l.length-1,i+1):Math.max(0,i<0?0:i-1);go(view,l[i].key);var r=document.querySelector('tr[data-key="'+l[i].key+'"]');if(r)r.scrollIntoView({block:"nearest"})}});
 window.addEventListener("hashchange",function(){parseHash();renderAll()});
 window.matchMedia("(max-width:1180px)").addEventListener("change",function(){if(S)renderPanel()});
 

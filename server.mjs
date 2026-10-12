@@ -2,7 +2,7 @@
 // Run: node D:\review-bot\server.mjs   then open http://localhost:4300
 import http from "node:http";
 import { spawn, execFile } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -922,7 +922,18 @@ const allowedHosts = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]);
 const sendJson = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 const readBody = req => new Promise(r => { let b = ""; req.on("data", d => { b += d; if (b.length > 2e5) req.destroy(); }); req.on("end", () => { try { r(JSON.parse(b || "{}")); } catch { r({}); } }); });
 let myJira = null;
-const view = () => ({ settings: state.settings, nextRunAt: nextScheduledRun(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, lastSyncAt: state.lastSyncAt, syncing: state.syncing, syncError: state.syncError, repos: config.repos, approveAssignee: config.approveAssignee, jiraStatus: config.jiraStatus, worklogDefault: Number(config.worklogMinutes) > 0 ? Number(config.worklogMinutes) : 10, devStatuses: Array.isArray(config.devStatuses) ? config.devStatuses : [], devScope: config.devScope || "mine", requireTestsAreas: config.requireTestsAreas || ["api"], jiraConfigured: !!(env.JIRA_EMAIL && env.JIRA_API_TOKEN), tickets: Object.values(state.tickets).filter(t => !t.closed).sort((a, b) => a.key.localeCompare(b.key)) });
+// Tickets that left the review status stay in data.json; the History tab lists them so they can be checked and cleared.
+const archiveItem = t => {
+  const n = p => { const c = sevCounts(p.findings || []); return { must: (p.findings || []).filter(BLOCKS).length, optional: c.low + c.nit }; };
+  return {
+    key: t.key, summary: t.summary || "", jiraUrl: t.jiraUrl || "", jiraStatus: t.jiraStatus || "", reporter: t.reporter?.name || "", updatedAt: t.updatedAt || null,
+    reviewState: t.review?.state || "none", verdict: t.reviewData?.verdict || "", reviewedAt: t.reviewData?.reviewedAt || null, postedAt: t.posted?.at || null, postedVerdict: t.posted?.verdict || "",
+    bytes: JSON.stringify(t).length,
+    prs: AREAS.filter(a => t.prs?.[a]?.number).map(a => ({ area: a, number: t.prs[a].number, url: t.prs[a].url, repo: t.prs[a].repo, state: t.prs[a].state })),
+    perPr: (t.reviewData?.perPr || []).map(p => ({ area: p.area, number: p.number, url: p.url, verdict: p.verdict, verdictReason: p.verdictReason || "", whatChanged: cap(p.whatChanged || "", 400), ...n(p) })),
+  };
+};
+const view = () => ({ archive: Object.values(state.tickets).filter(t => t.closed).map(archiveItem).sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""))), dataBytes: (() => { try { return statSync(DATA_FILE).size; } catch { return 0; } })(), settings: state.settings, nextRunAt: nextScheduledRun(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, lastSyncAt: state.lastSyncAt, syncing: state.syncing, syncError: state.syncError, repos: config.repos, approveAssignee: config.approveAssignee, jiraStatus: config.jiraStatus, worklogDefault: Number(config.worklogMinutes) > 0 ? Number(config.worklogMinutes) : 10, devStatuses: Array.isArray(config.devStatuses) ? config.devStatuses : [], devScope: config.devScope || "mine", requireTestsAreas: config.requireTestsAreas || ["api"], jiraConfigured: !!(env.JIRA_EMAIL && env.JIRA_API_TOKEN), tickets: Object.values(state.tickets).filter(t => !t.closed).sort((a, b) => a.key.localeCompare(b.key)) });
 const KEY = "([A-Z][A-Z0-9]+-\\d+)";
 
 http.createServer(async (req, res) => {
@@ -962,6 +973,12 @@ http.createServer(async (req, res) => {
     }
     let m;
     if ((m = new RegExp(`^/api/review/${KEY}$`).exec(url.pathname))) { if (state.tickets[m[1]]?.review?.state === "running") return sendJson(res, 409, { error: "already running" }); reviewTicket(m[1]); return sendJson(res, 202, { ok: true }); }
+    if (url.pathname === "/api/archive/clear") {
+      // Only tickets that already left the review status can be cleared; open tickets are never touched.
+      const keys = body.all === true ? Object.values(state.tickets).filter(t => t.closed).map(t => t.key) : (Array.isArray(body.keys) ? body.keys : []).filter(k => state.tickets[k]?.closed);
+      for (const k of keys) delete state.tickets[k];
+      save(); return sendJson(res, 200, { ok: true, removed: keys.length });
+    }
     if ((m = new RegExp(`^/api/reset/${KEY}$`).exec(url.pathname))) { resetDraft(m[1]); return sendJson(res, 200, { ok: true }); }
     if ((m = new RegExp(`^/api/post/${KEY}$`).exec(url.pathname))) return sendJson(res, 200, await postTicket(m[1], body.verdict));
     if ((m = new RegExp(`^/api/threads/${KEY}$`).exec(url.pathname))) {
