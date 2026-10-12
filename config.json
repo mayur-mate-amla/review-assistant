@@ -1,0 +1,12 @@
+{
+  "jiraSite": "amla.atlassian.net",
+  "jiraStatus": "Code Review",
+  "githubOwner": "MRRSoft",
+  "approveAssignee": "Umashankar Pardhi",
+  "repos": {
+    "admin": "MRRSoft/znode10-admin-migration",
+    "api": "MRRSoft/znode10-api-migration",
+    "webstore": "MRRSoft/znode-webstore10x-page-builder",
+    "db": "MRRSoft/znode10-multifront-db"
+  }
+}
