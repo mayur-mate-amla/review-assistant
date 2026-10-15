@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createTeam } from "./team.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = process.env.REPO_ROOT || "D:\\znode\\znode-webstore10x-page-builder";
@@ -35,6 +36,7 @@ state.syncing = false;
 for (const t of Object.values(state.tickets)) if (t.review?.state === "running") t.review = { state: "failed", error: "Bot restarted during review. Run it again." };
 const save = () => { try { writeFileSync(DATA_FILE, JSON.stringify(state, null, 2)); } catch { /* ignore */ } };
 const now = () => new Date().toISOString();
+let team = null; // created after jira() is defined, see below
 const cap = (s, n) => { s = String(s ?? ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
 const upper1 = s => String(s || "").charAt(0).toUpperCase() + String(s || "").slice(1);
 
@@ -270,7 +272,7 @@ async function runClaude(prompt, opts) {
 }
 
 function runClaudeOnce(prompt, { allowRead, cwd }) {
-  const deny = ["Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch", ...(allowRead ? [] : ["Read", "Grep", "Glob"])];
+  const deny = ["Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch", "mcp__claude_ai_Microsoft_365", "mcp__claude_ai_Atlassian", ...(allowRead ? [] : ["Read", "Grep", "Glob"])];
   return new Promise((resolve, reject) => {
     const child = spawn(env.CLAUDE_PATH || config.claudePath, ["-p", "--output-format", "json", "--disallowedTools", ...deny], { cwd: cwd || REPO_ROOT, windowsHide: true });
     let so = "", se = "";
@@ -481,6 +483,7 @@ async function reviewTicket(key) {
     const verdict = perPr.some(p => p.verdict === "request_changes") ? "request_changes" : (lead.verdict === "request_changes" ? "request_changes" : "approve");
     t.reviewData = { key, reviewedAt: now(), rubric: rubricVersion(), leadReason: lead.verdictReason || "", leadConfidence: lead.confidence || "", headShas: Object.fromEntries(perPr.map(p => [p.area, p.sha])), summary: lead.summary, verdict, crossPr: Array.isArray(lead.crossPr) ? lead.crossPr : [], mergeOrder: lead.mergeOrder || "", perPr };
     t.review = { state: "draft", verdict };
+    try { team?.snapshot(t); } catch { /* the team dashboard is optional */ }
   } catch (e) { if (current()) t.review = { state: "failed", error: String(e.message || e) }; }
   save();
 }
@@ -686,6 +689,55 @@ function loadTemplate(kind, verdict, area) {
 let myName = "";
 async function reviewerName() { try { return (myName ||= (myJira ||= (await jira("/rest/api/3/myself")).displayName || "")); } catch { return "the reviewer"; } }
 // info: { key, area, pr: {number,url,title,author}, pp (AI review of that PR, optional), verdict, reviewUrl, note }
+// Leave comes from the "OOO was created on Amla India Holiday/Leave Calendar" notification emails in the signed-in user's Outlook,
+// read through the Claude Microsoft 365 connector (no Graph credentials). Only the read-only email search tool is allowed.
+function runClaudeTools(prompt, allow, timeoutMs = 300000) {
+  const deny = ["Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch", "Read", "Grep", "Glob"];
+  return new Promise((resolve, reject) => {
+    const child = spawn(env.CLAUDE_PATH || config.claudePath, ["-p", "--output-format", "json", "--allowedTools", ...allow, "--disallowedTools", ...deny], { cwd: REPO_ROOT, windowsHide: true });
+    let so = "", se = "";
+    const timer = setTimeout(() => child.kill(), timeoutMs);
+    child.stdout.on("data", d => so += d); child.stderr.on("data", d => se += d);
+    child.on("error", e => { clearTimeout(timer); reject(e); });
+    child.on("close", code => {
+      clearTimeout(timer);
+      if (code !== 0) return reject(new Error(`claude exited ${code}: ${se.slice(0, 200)}`));
+      try { const env2 = JSON.parse(so); if (env2.is_error) throw new Error(String(env2.result).slice(0, 200)); resolve(extractJson(String(env2.result))); } catch (e) { reject(e); }
+    });
+    child.stdin.end(prompt);
+  });
+}
+async function fetchLeaveEmails() {
+  const after = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+  const prompt = [
+    "Use the Outlook email search tool (outlook_email_search; load it with tool search if it is deferred).",
+    `Search for emails whose text contains "Holiday/Leave Calendar" received after ${after}. Use limit 25 and keep paging with nextOffset until there are no more results (at most 8 pages).`,
+    "Do not call any other tool and do not open any email.",
+    "For every email returned copy these three fields exactly as given: subject, received (the receivedDateTime) and summary.",
+    'Return ONLY this JSON object: {"emails":[{"subject":"","received":"","summary":""}]}',
+  ].join("\n");
+  const r = await runClaudeTools(prompt, ["mcp__claude_ai_Microsoft_365__outlook_email_search"]);
+  return (Array.isArray(r.emails) ? r.emails : []).filter(e => e && /Holiday\/Leave Calendar/i.test(String(e.subject || "")));
+}
+// Leave that members announce by email themselves (sent to the signed-in user). Claude reads the mails and returns dates; only read tools are allowed.
+async function fetchMemberLeave(members) {
+  const people = members.filter(m => m.email);
+  if (!people.length) return [];
+  const today = new Date().toISOString().slice(0, 10), from = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10), after = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const prompt = [
+    `Today is ${today}. Use the Outlook email search tool (outlook_email_search; load it with tool search if it is deferred) and, only when needed, the read_resource tool to open an email.`,
+    `For each person below, search for emails SENT BY them (use the sender filter with their email address) received after ${after} that tell the user about leave: leave, sick leave, OOO, out of office, vacation, half day, taking the day off, or not being available. Use a query such as: leave OR sick OR OOO OR "out of office" OR vacation OR "half day".`,
+    "Ignore everything that is not a personal absence notice (GitHub notifications, code review comments, newsletters, meeting invites, test reports, mentions of the word leave in a technical sense).",
+    `Report only absences whose last day is on or after ${from} (so current and future leave). Work out the first and last day from the email text; a single day has the same start and end. Do not guess: if the dates cannot be read, skip the email.`,
+    "People:", ...people.map(m => `- ${m.name} <${m.email}>`),
+    "Do not call any other tool. Never send, reply, delete or change anything.",
+    'Return ONLY this JSON object: {"leave":[{"email":"","start":"YYYY-MM-DD","end":"YYYY-MM-DD","type":"Leave|Sick|Half day","subject":"","received":""}]}. Use {"leave":[]} when there is none.',
+  ].join("\n");
+  const r = await runClaudeTools(prompt, ["mcp__claude_ai_Microsoft_365__outlook_email_search", "mcp__claude_ai_Microsoft_365__read_resource"], 420000);
+  const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ""));
+  return (Array.isArray(r.leave) ? r.leave : []).filter(x => x && ok(x.start) && ok(x.end) && x.end >= x.start && people.some(m => m.email.toLowerCase() === String(x.email || "").toLowerCase())).slice(0, 100).map(x => ({ email: String(x.email).toLowerCase(), start: x.start, end: x.end, type: /sick|medical/i.test(x.type) ? "Sick" : /half/i.test(x.type) ? "Half day" : "Leave", subject: String(x.subject || "").slice(0, 160), received: String(x.received || "") }));
+}
+team = createTeam({ jira, state, save, fetchLeaveEmails, fetchMemberLeave });
 async function jiraTemplateText(info) {
   const { key, area, pr, pp, verdict, reviewUrl, note } = info;
   const tpl = loadTemplate("jira", verdict, area), lead = info.lead || {};
@@ -933,7 +985,7 @@ const archiveItem = t => {
     perPr: (t.reviewData?.perPr || []).map(p => ({ area: p.area, number: p.number, url: p.url, verdict: p.verdict, verdictReason: p.verdictReason || "", whatChanged: cap(p.whatChanged || "", 400), ...n(p) })),
   };
 };
-const view = () => ({ archive: Object.values(state.tickets).filter(t => t.closed).map(archiveItem).sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""))), dataBytes: (() => { try { return statSync(DATA_FILE).size; } catch { return 0; } })(), settings: state.settings, nextRunAt: nextScheduledRun(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, lastSyncAt: state.lastSyncAt, syncing: state.syncing, syncError: state.syncError, repos: config.repos, approveAssignee: config.approveAssignee, jiraStatus: config.jiraStatus, worklogDefault: Number(config.worklogMinutes) > 0 ? Number(config.worklogMinutes) : 10, devStatuses: Array.isArray(config.devStatuses) ? config.devStatuses : [], devScope: config.devScope || "mine", requireTestsAreas: config.requireTestsAreas || ["api"], jiraConfigured: !!(env.JIRA_EMAIL && env.JIRA_API_TOKEN), tickets: Object.values(state.tickets).filter(t => !t.closed).sort((a, b) => a.key.localeCompare(b.key)) });
+const view = () => ({ jiraSite: config.jiraSite, outlookConfigured: !!team?.leaveAvailable(), archive: Object.values(state.tickets).filter(t => t.closed).map(archiveItem).sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""))), dataBytes: (() => { try { return statSync(DATA_FILE).size; } catch { return 0; } })(), settings: state.settings, nextRunAt: nextScheduledRun(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, lastSyncAt: state.lastSyncAt, syncing: state.syncing, syncError: state.syncError, repos: config.repos, approveAssignee: config.approveAssignee, jiraStatus: config.jiraStatus, worklogDefault: Number(config.worklogMinutes) > 0 ? Number(config.worklogMinutes) : 10, devStatuses: Array.isArray(config.devStatuses) ? config.devStatuses : [], devScope: config.devScope || "mine", requireTestsAreas: config.requireTestsAreas || ["api"], jiraConfigured: !!(env.JIRA_EMAIL && env.JIRA_API_TOKEN), tickets: Object.values(state.tickets).filter(t => !t.closed).sort((a, b) => a.key.localeCompare(b.key)) });
 const KEY = "([A-Z][A-Z0-9]+-\\d+)";
 
 http.createServer(async (req, res) => {
@@ -956,6 +1008,10 @@ http.createServer(async (req, res) => {
       const jiraText = await jiraTemplateText({ key: pv[1], area, pr: { ...pr, number: pp.number, url: pp.url || pr.url, title: pp.title || pr.title }, pp, verdict, reviewUrl: pr.url, lead: t.reviewData });
       return sendJson(res, 200, { verdict, github, jira: jiraText });
     }
+    if (req.method === "GET" && url.pathname === "/api/team") {
+      const q = url.searchParams;
+      return sendJson(res, 200, await team.get({ range: q.get("range") || "week", from: q.get("from") || "", to: q.get("to") || "", types: (q.get("types") || "").split(",").filter(Boolean), bucket: q.get("bucket") === "weekly" ? "weekly" : "daily", refresh: q.get("refresh") === "1" }));
+    }
     if (req.method === "GET" && url.pathname === "/api/state") return sendJson(res, 200, view());
     if (req.method !== "POST" || req.headers["x-review-bot"] !== "1") return sendJson(res, 403, { error: "forbidden" });
     const body = await readBody(req);
@@ -971,6 +1027,13 @@ http.createServer(async (req, res) => {
       state.settings.schedule = { enabled: sc.enabled === true, times, lastFired: state.settings.schedule?.lastFired || "" };
       save(); return sendJson(res, 200, { ok: true });
     }
+    if (url.pathname === "/api/team/members") {
+      if (body.add) return sendJson(res, 200, { ok: true, member: await team.addMember(body.add.query) });
+      if (body.remove) { team.removeMember(String(body.remove.id || "")); return sendJson(res, 200, { ok: true }); }
+      if (body.email) return sendJson(res, 200, { ok: true, member: team.setEmail(String(body.email.id || ""), body.email.value) });
+      return sendJson(res, 400, { error: "nothing to do" });
+    }
+    if (url.pathname === "/api/team/outlook-test") return sendJson(res, 200, await team.testLeave());
     let m;
     if ((m = new RegExp(`^/api/review/${KEY}$`).exec(url.pathname))) { if (state.tickets[m[1]]?.review?.state === "running") return sendJson(res, 409, { error: "already running" }); reviewTicket(m[1]); return sendJson(res, 202, { ok: true }); }
     if (url.pathname === "/api/archive/clear") {

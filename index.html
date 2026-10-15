@@ -41,7 +41,7 @@ button{cursor:pointer}
 .av.c1{background:#e0ecff;color:#1d4ed8}.av.c2{background:#fde7f3;color:#be185d}.av.c3{background:#dcfae6;color:#067647}.av.c4{background:#fef0c7;color:#b54708}.av.c5{background:#ece9fe;color:#5b45d6}
 .main{padding:18px 24px 20px;min-width:0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 #v-list{flex:1;min-height:0;display:flex;flex-direction:column}
-#v-settings,#v-history{flex:1;min-height:0;overflow:auto}
+#v-settings,#v-history,#v-team{flex:1;min-height:0;overflow:auto}
 .stats,.filters,.top,.notice{flex:none}
 .top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .top h1{margin:0;font-size:26px;line-height:1.2;letter-spacing:-.01em}.top .sub{color:var(--muted);font-size:14px;margin-top:2px}
@@ -193,6 +193,26 @@ ul.plain{margin:0;padding-left:18px}ul.plain li{margin:3px 0}
 .msghead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}.msghead b{color:var(--fg)}
 .msgbody{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px;font-size:13px}
 .muted{color:var(--muted)}
+.sec2{margin:6px 0 -4px;font-size:15px}.msmall{font-size:12px;margin:6px 0 0}.mlab{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:10px}
+.arow{display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13.5px}.arow.small{font-size:12.5px;padding:2px 0;color:var(--fg-2)}.adot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;background:var(--warn)}.adot.bad{background:var(--bad)}.alink{border:0;background:none;color:var(--accent);font-weight:600;padding:0;text-align:left;cursor:pointer}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}.mcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;cursor:pointer;min-width:0}.mcard:hover{border-color:var(--line-2);box-shadow:var(--shadow)}.mcard.away{opacity:.8}.mtop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.util{display:flex;align-items:center;gap:10px;font-size:13px;margin-top:6px}.util .sbar{flex:1;min-width:60px}.sfill.low{background:var(--warn)}
+.wrow{display:flex;align-items:center;gap:8px;font-size:13px;min-width:0}.wrow .wt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wrow .mini{margin:0;white-space:nowrap}
+.mstats{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}.mstats b{color:var(--fg)}.mstats .warn b{color:var(--warn)}.mstats .bad b{color:var(--bad)}
+.team{display:flex;flex-direction:column;gap:14px;padding-bottom:24px}.tbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tgroup{display:inline-flex;gap:4px;flex-wrap:wrap}
+.tchip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-weight:500;font-size:13px}.tchip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.tbar input[type=date]{height:32px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);padding:0 8px}
+.tdot{display:inline-block;width:9px;height:9px;border-radius:3px;flex:none}
+.thead{background:var(--accent-soft);color:var(--accent);border-radius:10px;padding:12px 16px;font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.ttile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}.ttile .l{color:var(--muted);font-size:13px}.ttile b{font-size:24px;font-variant-numeric:tabular-nums}.ttile.bad b{color:var(--bad)}.ttile.warn b{color:var(--warn)}
+.ttwo{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px;align-items:start}
+.tleg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--fg-2);margin-bottom:8px}.tleg span{display:inline-flex;align-items:center;gap:5px}
+.tcols{display:flex;align-items:flex-end;gap:6px;height:190px;overflow-x:auto;padding-top:4px}.tcols.short{height:130px}.tcol{flex:1 0 34px;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;min-width:34px}.tstack{flex:1;width:100%;max-width:44px;display:flex;flex-direction:column-reverse;gap:2px;justify-content:flex-start}.tseg{width:100%;border-radius:3px;min-height:3px}.tn{font-size:12px;font-weight:600;height:16px}.tx{font-size:11px;color:var(--muted);white-space:nowrap}
+.lrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}.lrow:last-child{border:0}.lrow .mini{margin:0}
+.tscroll{overflow-x:auto}.ttable{width:100%;border-collapse:collapse;font-size:13px}.ttable th,.ttable td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}.ttable th{color:var(--fg-2);font-weight:600;white-space:nowrap}.ttable .n{text-align:right;font-variant-numeric:tabular-nums}.ttable tr.clk{cursor:pointer}.ttable tr.clk:hover{background:var(--surface-2)}
+.sbar{height:8px;border-radius:4px;background:var(--surface-2);min-width:90px}.sfill{height:8px;border-radius:4px;background:var(--accent)}
+.brow{padding:8px 0;border-bottom:1px solid var(--line)}.brow:last-child{border:0}.mini.bad{color:var(--bad)}
+@media (max-width:1100px){.ttwo{grid-template-columns:minmax(0,1fr)}}
 .hist{display:flex;flex-direction:column;gap:12px;padding-bottom:20px}.hbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.hist .listbox{overflow:auto}.hist tbody tr:hover{background:none}.hdet{display:flex;flex-direction:column;gap:10px;padding:4px 4px 8px}.hrow{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)}.hrow p{margin:6px 0 0}
 .chip.off{opacity:.55}.chipx{border:0;background:none;color:inherit;padding:0;display:inline-grid;place-items:center;cursor:pointer}.chipx:hover{color:var(--bad)}
 /* full-page detail */
@@ -355,6 +375,7 @@ dl.kv{margin:0;display:grid;grid-template-columns:150px 1fr;gap:8px 12px}dl.kv d
 
     <section id="v-settings" hidden></section>
     <section id="v-history" hidden></section>
+    <section id="v-team" hidden></section>
   </div>
 </div>
 <div id="backdrop" hidden></div>
@@ -368,7 +389,8 @@ var CHECKS=[["requirements","Requirements","Requirements"],["correctness","Funct
 var SEVRANK={blocker:5,high:4,medium:3,low:2,nit:1};
 var STATUS_OPTS=[["","Status"],["needs","Needs review"],["progress","In progress"],["ready","Ready to post"],["posted","Posted"]];
 var SORTS=[["wait","Oldest waiting"],["new","Newest first"],["sev","Highest severity"],["cmt","Most comments"],["key","Jira key"]];
-var VIEWS={all:{t:"Code Review Queue",s:"Review, give feedback and help ship high quality code.",icon:"queue",name:"All Review"},history:{t:"History",s:"Old tickets that left Code Review. Check what was reviewed, or clear them.",icon:"posted",name:"History"},settings:{t:"Settings",s:"Sync, appearance and review rules.",icon:"settings",name:"Settings"}};
+var tmem=null;
+var VIEWS={all:{t:"Code Review Queue",s:"Review, give feedback and help ship high quality code.",icon:"queue",name:"All Review"},team:{t:"Team",s:"Velocity, time per ticket, bugs, breaking changes and leave.",icon:"mine",name:"Team"},history:{t:"History",s:"Old tickets that left Code Review. Check what was reviewed, or clear them.",icon:"posted",name:"History"},settings:{t:"Settings",s:"Sync, appearance and review rules.",icon:"settings",name:"Settings"}};
 
 var S=null,last="",view="all",sel=null,tab="overview",selPr={},checked={},drafts={},replyTo={},busy={},armed={},me="",loaded=false,offline=false;
 var F={q:"",status:"",repo:"",from:"",sev:"",sort:"wait"};
@@ -428,12 +450,12 @@ function visible(){
   return list.sort(cmp)}
 
 /* ---------- routing ---------- */
-function parseHash(){var m=/^#\/(queue|mine|posted|all|history|settings)(?:\?t=([\w-]+))?/.exec(location.hash);view=m&&m[1]==="settings"?"settings":m&&m[1]==="history"?"history":"all";sel=m&&m[2]?m[2]:null}
+function parseHash(){var m=/^#\/(queue|mine|posted|all|history|team|settings)(?:\?[tm]=([\w-]+))?/.exec(location.hash);view=m&&m[1]==="settings"?"settings":m&&m[1]==="history"?"history":m&&m[1]==="team"?"team":"all";sel=view==="all"&&m&&m[2]?m[2]:null;tmem=view==="team"&&m&&m[2]?m[2]:null}
 function go(v,key){var h="#/"+v+(key?"?t="+encodeURIComponent(key):"");if(location.hash===h)renderAll();else location.hash=h}
 
 /* ---------- static pieces ---------- */
 function renderNav(){var nav=clear($("nav"));
-  ["all","history","settings"].forEach(function(k){var a=el("a");a.href="#/"+k;if(view===k)a.setAttribute("aria-current","page");add(a,ic(VIEWS[k].icon),el("span","",VIEWS[k].name));if(k==="all")a.appendChild(el("b","badge",String(S?S.tickets.length:0)));if(k==="history"&&S&&(S.archive||[]).length)a.appendChild(el("b","badge",String(S.archive.length)));nav.appendChild(a)})}
+  ["all","team","history","settings"].forEach(function(k){var a=el("a");a.href="#/"+k;if(view===k)a.setAttribute("aria-current","page");add(a,ic(VIEWS[k].icon),el("span","",VIEWS[k].name));if(k==="all")a.appendChild(el("b","badge",String(S?S.tickets.length:0)));if(k==="history"&&S&&(S.archive||[]).length)a.appendChild(el("b","badge",String(S.archive.length)));nav.appendChild(a)})}
 function fillSelect(id,opts,val){var s=$(id);clear(s);opts.forEach(function(o){var op=el("option","",o[1]);op.value=o[0];if(o[0]===val)op.selected=true;s.appendChild(op)});s.classList.toggle("on",!!val&&id!=="f-sort")}
 function renderFilters(){
   fillSelect("f-status",STATUS_OPTS,F.status);
@@ -718,6 +740,131 @@ function renderComposer(t,area){
   bR.addEventListener("click",function(){send("request_changes",bR)});bA.addEventListener("click",function(){send("approve",bA)});bS.addEventListener("click",function(){send("comment",bS)});
   if(t.mode==="dev"){bS.textContent=rt?"Send reply":"Comment on PR";add(act,mo,bS)}else add(act,mo,bR,bA,bS);box.appendChild(act);sync()}
 
+/* ---------- team: velocity, time, bugs, breaking changes, leave ---------- */
+var tAll=false,tPoll=null,T=null,TS={range:"week",bucket:"daily",types:[],from:"",to:""},tBusy=false,tErr="",tArmed=null,tNew="";
+var TCOL={Story:"#2a78d6",Bug:"#eb6834","Sub-task":"#1baf7a",Task:"#eda100",Other:"#898781"},TTYPES=["Story","Bug","Task","Sub-task"];
+try{var tsv=JSON.parse(lsGet("rb.team")||"null");if(tsv&&typeof tsv==="object"){["range","bucket","from","to"].forEach(function(k){if(typeof tsv[k]==="string")TS[k]=tsv[k]});if(Array.isArray(tsv.types))TS.types=tsv.types.filter(function(x){return TTYPES.indexOf(x)>=0})}}catch(e){}
+function saveTS(){lsSet("rb.team",JSON.stringify(TS))}
+function loadTeam(refresh){
+  tBusy=true;tErr="";if(view==="team")renderTeam();
+  var q="range="+TS.range+"&bucket="+TS.bucket+"&types="+encodeURIComponent(TS.types.join(","))+(TS.range==="custom"&&TS.from&&TS.to?"&from="+TS.from+"&to="+TS.to:"")+(refresh?"&refresh=1":"");
+  return fetch("/api/team?"+q).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||"failed");return j})}).then(function(j){T=j}).catch(function(e){tErr=e.message}).then(function(){tBusy=false;if(view==="team")renderTeam();if(T&&T.leaveStatus&&T.leaveStatus.refreshing&&view==="team"&&!tPoll){tPoll=setTimeout(function(){tPoll=null;if(view==="team")loadTeam(false)},20000)}})}
+function teamChip(label,on,fn){var b=el("button","tchip",label);b.type="button";b.setAttribute("aria-pressed",on?"true":"false");b.addEventListener("click",fn);return b}
+function tile(label,val,cls,hint){var d=el("div","ttile"+(cls?" "+cls:""));add(d,el("span","l",label),el("b","",String(val)));if(hint)d.title=hint;return d}
+function hrs(n){return (Math.round(n*10)/10)+" h"}
+function jiraUrlFor(key){return S&&S.jiraSite?"https://"+S.jiraSite+"/browse/"+key:""}
+function typeDot(t){var s=el("span","tdot");s.style.background=TCOL[t]||TCOL.Other;s.title=t;return s}
+function dayLabel(k){var p=k.split("-");return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}
+function leaveText(l){return l.start===l.end?dayLabel(l.start):dayLabel(l.start)+" to "+dayLabel(l.end)}
+function idleText(n){return n==null?"":n<=0?"updated today":n===1?"updated yesterday":"idle "+n+" days"}
+function renderTeam(){
+  var v=clear($("v-team")),w=el("div","team");
+  if(tmem&&T){var m=(T.members||[]).filter(function(x){return x.id===tmem})[0];if(m){renderTeamMember(w,m);v.appendChild(w);return}}
+  var bar=el("div","tbar"),rg=el("div","tgroup");
+  [["week","This week"],["lastweek","Last week"],["sprint","Last 14 days"],["custom","Custom"]].forEach(function(x){rg.appendChild(teamChip(x[1],TS.range===x[0],function(){TS.range=x[0];saveTS();loadTeam(false)}))});bar.appendChild(rg);
+  if(TS.range==="custom"){var cg=el("div","tgroup");["from","to"].forEach(function(k){var i=el("input");i.type="date";i.value=TS[k]||"";i.setAttribute("aria-label",k==="from"?"From date":"To date");i.addEventListener("change",function(){TS[k]=i.value;saveTS();if(TS.from&&TS.to)loadTeam(false)});cg.appendChild(i)});bar.appendChild(cg)}
+  var bg=el("div","tgroup");[["daily","Daily"],["weekly","Weekly"]].forEach(function(x){bg.appendChild(teamChip(x[1],TS.bucket===x[0],function(){TS.bucket=x[0];saveTS();loadTeam(false)}))});bar.appendChild(bg);
+  var tg=el("div","tgroup");tg.appendChild(teamChip("All types",!TS.types.length,function(){TS.types=[];saveTS();loadTeam(false)}));
+  TTYPES.forEach(function(x){var on=TS.types.indexOf(x)>=0;var c=teamChip(x,on,function(){TS.types=on?TS.types.filter(function(y){return y!==x}):TS.types.concat([x]);saveTS();loadTeam(false)});c.insertBefore(typeDot(x),c.firstChild);tg.appendChild(c)});bar.appendChild(tg);
+  var sp=el("span");sp.style.flex="1";bar.appendChild(sp);
+  bar.appendChild(el("span","muted",tBusy?"Loading…":(T&&T.updatedAt?"Updated "+ago(T.updatedAt)+" ago":"")));
+  var rb=actionButton("Refresh","",function(){loadTeam(true)},"sync");rb.disabled=tBusy;bar.appendChild(rb);w.appendChild(bar);
+  if(tErr){var ec=el("div","card");ec.style.borderColor="var(--bad)";ec.appendChild(el("b","","Could not load the team data"));ec.appendChild(el("p","muted",tErr));w.appendChild(ec)}
+  if(!T){if(!tErr)w.appendChild(el("div","card muted","Loading the team dashboard…"));v.appendChild(w);return}
+  (T.warnings||[]).forEach(function(x){w.appendChild(el("div","notice",x))});
+  if(T.empty){var ec2=el("div","card");add(ec2,el("h3","","Add your team"),el("p","muted","Add the people whose work you want to follow. The dashboard reads their Jira tickets, work logs and bugs, and their leave from Outlook."));w.appendChild(ec2);w.appendChild(memberCard());v.appendChild(w);return}
+  var t=T.totals||{},ls=T.leaveStatus||{};
+  var hl=el("div","thead");hl.textContent=T.headline;w.appendChild(hl);
+  // needs attention
+  var ac=el("div","card"),ah=el("h3","","Needs attention · "+(T.attention||[]).length);ac.appendChild(ah);
+  if(!(T.attention||[]).length){var gd=el("div","good");add(gd,ic("okc","sm"),"Nothing needs attention right now");ac.appendChild(gd)}
+  (tAll?T.attention:(T.attention||[]).slice(0,8)).forEach(function(x){var r=el("div","arow"),d=el("span","adot "+x.level);d.title=x.level==="bad"?"Needs action":"Worth a look";var nb=el("button","alink",x.member);nb.type="button";nb.addEventListener("click",function(){go("team",x.id)});add(r,d,nb,el("span","",x.text));ac.appendChild(r)});
+  if((T.attention||[]).length>8){var mb2=actionButton(tAll?"Show fewer":"Show all "+T.attention.length,"ghost",function(){tAll=!tAll;renderTeam()});ac.appendChild(mb2)}
+  w.appendChild(ac);
+  var tiles=el("div","tiles");
+  add(tiles,tile("In progress",t.active,"","Dev In Progress, In Progress, Analysis, Feedback"),tile("In code review",t.inReview),tile("With QA / deploy",t.qa,"","Available For QA, Ready for Deployment"),tile("Closed",t.closed),tile("Hours logged",hrs(t.hours||0),(t.expected&&t.hours/t.expected<0.6)?"warn":"",hrs(t.expected||0)+" expected: 8 h per working day up to yesterday, minus leave"),tile("Stale (14 d+)",t.stale,t.stale?"warn":"","In progress, in review or ready-for-dev tickets with no update for 14 days or more"),tile("Open bugs",t.openBugs,t.openBugs?"warn":"","Created in period: "+(t.bugsCreated||0)+", closed: "+(t.bugsClosed||0)),tile("Breaking changes",t.breaking,t.breaking?"bad":"","From the AI reviews of the team's PRs in this period; "+(t.reviewedTickets||0)+" ticket(s) reviewed"),tile("On leave today",t.onLeave,t.onLeave?"warn":""));
+  w.appendChild(tiles);
+  // team board
+  var bh=el("h3","sec2","What each person is doing");w.appendChild(bh);
+  var board=el("div","board");
+  (T.members||[]).forEach(function(m){
+    var c=el("div","mcard"+(m.onLeave?" away":""));c.tabIndex=0;
+    var top=el("div","mtop"),nm=el("div","who");add(nm,avatar(m.name),el("b","",m.name));top.appendChild(nm);
+    top.appendChild(el("span","chip "+(m.onLeave?"amber":m.halfDay?"amber":"green"),m.onLeave?"On leave":m.halfDay?"Half day":"Available"));c.appendChild(top);
+    // hours vs expected
+    var ur=el("div","util"),pct=m.utilization==null?0:Math.min(100,m.utilization),bar2=el("div","sbar"),fill=el("div","sfill"+(m.utilization!=null&&m.utilization<60?" low":""));fill.style.width=pct+"%";bar2.appendChild(fill);
+    add(ur,el("span","",hrs(m.hours)+(m.expected?" of "+hrs(m.expected):"")+" logged"),bar2);c.appendChild(ur);
+    if(m.lastLogged)c.appendChild(el("span","mini","Last time logged "+(m.daysSinceLog===0?"today":m.daysSinceLog===1?"yesterday":m.daysSinceLog+" days ago")));else if(m.expected)c.appendChild(el("span","mini bad","No time logged in this period"));
+    // working now
+    c.appendChild(el("div","mlab","Working on now"));
+    if(!m.working.length)c.appendChild(el("p","muted msmall",m.onLeave?"Away":m.open?"Nothing in progress":"No open tickets"));
+    m.working.slice(0,3).forEach(function(x){var r=el("div","wrow");add(r,typeDot(x.type),ext(jiraUrlFor(x.key),x.key,"key"),el("span","wt",x.summary),el("span","mini",x.status+(x.idleDays>=3?" · "+idleText(x.idleDays):"")));c.appendChild(r)});
+    if(m.working.length>3)c.appendChild(el("span","mini","+"+(m.working.length-3)+" more in progress"));
+    var st=el("div","mstats");[["Closed",m.closed],["Review",m.inReview],["QA",m.qa],["Ready",m.todo],["Stale",m.stale],["Bugs",m.bugsOpen],["Breaking",m.breaking]].forEach(function(x){var s=el("span","");add(s,el("b","",String(x[1])),document.createTextNode(" "+x[0]));if(x[0]==="Stale"&&x[1]>=8)s.className="warn";if(x[0]==="Breaking"&&x[1])s.className="bad";st.appendChild(s)});c.appendChild(st);
+    (m.flags||[]).slice(0,3).forEach(function(f){var r=el("div","arow small");add(r,el("span","adot "+f.level),el("span","",f.text));c.appendChild(r)});
+    function open(){go("team",m.id)}c.addEventListener("click",function(e){if(e.target.closest("a"))return;open()});c.addEventListener("keydown",function(e){if(e.key==="Enter"&&e.target===c)open()});board.appendChild(c)});
+  w.appendChild(board);
+  var two=el("div","ttwo"),cc=el("div","card");
+  cc.appendChild(el("h3","","Tickets closed "+(T.bucket==="weekly"?"per week":"per day")));
+  var leg=el("div","tleg");["Story","Bug","Task","Sub-task"].forEach(function(x){if(!TS.types.length||TS.types.indexOf(x)>=0){var sp2=el("span","");sp2.appendChild(typeDot(x));sp2.appendChild(document.createTextNode(x));leg.appendChild(sp2)}});cc.appendChild(leg);
+  var mx=Math.max(1,Math.max.apply(null,(T.chart||[]).map(function(b){return b.total}))),cols=el("div","tcols");
+  (T.chart||[]).forEach(function(b){var col=el("div","tcol"),stack=el("div","tstack");stack.title=b.label+": "+b.total+" closed";
+    ["Story","Bug","Task","Sub-task","Other"].forEach(function(k){if(!b[k])return;var seg=el("div","tseg");seg.style.height=(b[k]/mx*100)+"%";seg.style.background=TCOL[k];seg.title=k+": "+b[k];stack.appendChild(seg)});
+    col.appendChild(el("span","tn",b.total?String(b.total):""));col.appendChild(stack);col.appendChild(el("span","tx",b.label));cols.appendChild(col)});
+  cc.appendChild(cols);two.appendChild(cc);
+  var lc=el("div","card");lc.appendChild(el("h3","","On leave"));
+  if(!(T.leave||[]).length)lc.appendChild(el("p","muted","Nobody is on leave today or in the next 7 days."));
+  (T.leave||[]).forEach(function(l){var r=el("div","lrow");add(r,avatar(l.name),(function(){var d=el("div");add(d,el("b","",l.name),el("span","mini",(l.today?"Today · ":"")+leaveText(l)));return d})(),el("span","chip amber round",l.type));lc.appendChild(r)});
+  var lsrc=el("p","muted msmall");lsrc.textContent=(ls.refreshing?"Reading Outlook… ":ls.fetchedAt?"From Outlook, updated "+ago(ls.fetchedAt)+" ago. ":"Not read from Outlook yet. ")+"Calendar notices and leave emails sent by members"+(ls.memberEmails!=null?" ("+ls.memberEmails+" email"+(ls.memberEmails===1?"":"s")+" found)":"")+"."+(ls.error?" Problem: "+ls.error:"");lc.appendChild(lsrc);
+  two.appendChild(lc);w.appendChild(two);
+  var mc=el("div","card");mc.appendChild(el("h3","","Closed per member, last 6 weeks"));var tw=el("div","tscroll"),tb=el("table","ttable"),hr=el("tr");hr.appendChild(el("th","","Member"));(T.weeks||[]).forEach(function(x){hr.appendChild(el("th","n","Wk "+x.label))});tb.appendChild(hr);
+  var wmax=1;(T.members||[]).forEach(function(m){(m.weekly||[]).forEach(function(n){if(n>wmax)wmax=n})});
+  (T.members||[]).forEach(function(m){var r=el("tr");r.appendChild(el("td","",m.name));(m.weekly||[]).forEach(function(n){var td=el("td","n",n?String(n):"·");if(n)td.style.background="color-mix(in srgb, var(--accent) "+Math.round(12+n/wmax*38)+"%, transparent)";r.appendChild(td)});tb.appendChild(r)});
+  tw.appendChild(tb);mc.appendChild(tw);w.appendChild(mc);
+  if((T.breaking||[]).length){var bc=el("div","card");bc.appendChild(el("h3","","Breaking changes in this period"));
+    T.breaking.forEach(function(b){var r=el("div","brow"),hd=el("div","row");add(hd,ext(jiraUrlFor(b.key),b.key,"key"),el("span","tag",LABEL[b.area]+" #"+b.number),el("span","muted",b.member||"Team PR"),el("span","chip red round",b.count+" breaking"));r.appendChild(hd);r.appendChild(bullets(b.items));bc.appendChild(r)});w.appendChild(bc)}
+  w.appendChild(memberCard());
+  v.appendChild(w)}
+function memberCard(){
+  var c=el("div","card"),h=el("div","row");h.style.marginBottom="8px";var h3=el("h3","","Manage members");h3.style.margin="0";h.appendChild(h3);var sp=el("span");sp.style.flex="1";h.appendChild(sp);
+  var inp=el("input");inp.type="text";inp.placeholder="Add by name or email";inp.value=tNew;inp.setAttribute("aria-label","Add a team member");inp.style.cssText="height:34px;width:240px;max-width:100%;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);padding:0 10px";inp.addEventListener("input",function(){tNew=inp.value});
+  var ab=actionButton("Add member","primary",function(){var q=inp.value.trim();if(q.length<2){toast("Enter a name or email.",true);return}ab.disabled=true;api("/api/team/members",{add:{query:q}}).then(function(r){tNew="";toast(r.member.name+" added");return loadTeam(true)}).catch(function(e){toast(e.message,true);ab.disabled=false})},"clock");
+  inp.addEventListener("keydown",function(e){if(e.key==="Enter")ab.click()});add(h,inp,ab);c.appendChild(h);
+  var ms=(T&&T.members)||[];
+  if(!ms.length){c.appendChild(el("p","muted","No members yet."));return c}
+  var sc=el("div","tscroll"),tb=el("table","ttable"),hr=el("tr");["Member","Email","Open","Closed","Logged",""].forEach(function(x,i){hr.appendChild(el("th",i>1&&i<5?"n":"",x))});tb.appendChild(hr);
+  ms.forEach(function(m){var r=el("tr","clk");r.tabIndex=0;
+    var c0=el("td"),w0=el("div","who");add(w0,avatar(m.name),el("span","",m.name));c0.appendChild(w0);r.appendChild(c0);r.appendChild(el("td","muted",m.email||"—"));
+    [m.open,m.closed,hrs(m.hours)].forEach(function(x){r.appendChild(el("td","n",String(x)))});
+    var ac=el("td","col-act"),rm=actionButton(tArmed===m.id?"Click again":"Remove","bad",function(e){e.stopPropagation();if(tArmed!==m.id){tArmed=m.id;renderTeam();setTimeout(function(){if(tArmed===m.id){tArmed=null;if(view==="team")renderTeam()}},5000);return}tArmed=null;api("/api/team/members",{remove:{id:m.id}}).then(function(){toast(m.name+" removed");return loadTeam(true)}).catch(function(e2){toast(e2.message,true)})});rm.title="Remove from the team list. Nothing changes in Jira.";ac.appendChild(rm);r.appendChild(ac);
+    function open(){go("team",m.id)}r.addEventListener("click",open);r.addEventListener("keydown",function(e){if(e.key==="Enter"&&e.target===r)open()});tb.appendChild(r)});
+  sc.appendChild(tb);c.appendChild(sc);return c}
+function renderTeamMember(w,m){
+  var top=el("div","row"),back=actionButton("Team","",function(){go("team",null)});back.insertBefore(ic("right","sm back"),back.firstChild);top.appendChild(back);
+  var nm=el("h2","");nm.style.cssText="margin:0;font-size:20px";nm.textContent=m.name;top.appendChild(avatar(m.name,true));top.appendChild(nm);top.appendChild(el("span","chip "+(m.onLeave||m.halfDay?"amber":"green"),m.onLeave?"On leave":m.halfDay?"Half day":"Available"));if(m.email)top.appendChild(el("span","muted",m.email));w.appendChild(top);
+  w.appendChild(el("p","muted",T.range.label+" ("+T.range.from+" to "+T.range.to+")"+(TS.types.length?" · "+TS.types.join(", "):"")));
+  if((m.flags||[]).length){var fc=el("div","card");fc.appendChild(el("h3","","Needs attention"));m.flags.forEach(function(f){var r=el("div","arow");add(r,el("span","adot "+f.level),el("span","",f.text));fc.appendChild(r)});w.appendChild(fc)}
+  var tiles=el("div","tiles");add(tiles,tile("In progress",m.active),tile("In code review",m.inReview),tile("With QA",m.qa),tile("Ready for dev",m.todo),tile("Closed",m.closed),tile("Hours logged",hrs(m.hours)+(m.expected?" / "+hrs(m.expected):"")),tile("Stale (14 d+)",m.stale,m.stale?"warn":""),tile("Open bugs",m.bugsOpen,m.bugsOpen?"warn":""),tile("Breaking changes",m.breaking,m.breaking?"bad":""));w.appendChild(tiles);
+  var cw=el("div","card");cw.appendChild(el("h3","","Working on now · "+m.working.length));
+  if(!m.working.length)cw.appendChild(el("p","muted","Nothing is in progress."));
+  m.working.forEach(function(x){var r=el("div","lrow");add(r,typeDot(x.type),ext(jiraUrlFor(x.key),x.key,"key"),el("span","",x.summary),el("span","mini",x.status+(x.idleDays!=null?" · "+idleText(x.idleDays):"")));cw.appendChild(r)});w.appendChild(cw);
+  var c1=el("div","card");c1.appendChild(el("h3","","Time spent per ticket · "+hrs(m.hours)));
+  if(!m.tickets.length)c1.appendChild(el("p","muted","No Jira work logs by "+m.name+" in this period. Time only shows when it is logged in Jira."));
+  else{var sc=el("div","tscroll"),tb=el("table","ttable"),hr=el("tr");["Ticket","Type","Status","Spent","Share"].forEach(function(x,i){hr.appendChild(el("th",i===3?"n":"",x))});tb.appendChild(hr);
+    m.tickets.forEach(function(t){var r=el("tr"),c0=el("td"),k=ext(jiraUrlFor(t.key),t.key,"key");c0.appendChild(k);c0.appendChild(el("div","",t.summary||""));if(t.parent)c0.appendChild(el("span","mini","Sub-task of "+t.parent));r.appendChild(c0);
+      var c1x=el("td");add(c1x,typeDot(t.type),document.createTextNode(" "+t.type));r.appendChild(c1x);r.appendChild(el("td","",t.status||"—"));r.appendChild(el("td","n",hrs(t.hours)));
+      var sh=el("td"),bar=el("div","sbar"),fill=el("div","sfill");fill.style.width=t.share+"%";bar.appendChild(fill);add(sh,bar,el("span","mini",t.share+"%"));r.appendChild(sh);tb.appendChild(r)});sc.appendChild(tb);c1.appendChild(sc)}
+  w.appendChild(c1);
+  if(m.staleList.length){var cs=el("div","card");cs.appendChild(el("h3","","Open but untouched · "+m.stale));cs.appendChild(el("p","muted msmall","Open tickets with no update for 14 days or more, oldest first."));m.staleList.forEach(function(x){var r=el("div","lrow");add(r,typeDot(x.type),ext(jiraUrlFor(x.key),x.key,"key"),el("span","",x.summary),el("span","mini",x.status+" · "+idleText(x.idleDays)));cs.appendChild(r)});w.appendChild(cs)}
+  var c2=el("div","card");c2.appendChild(el("h3","","Closed per week"));var wm=Math.max(1,Math.max.apply(null,m.weekly||[0])),cols=el("div","tcols short");
+  (m.weekly||[]).forEach(function(n,i){var col=el("div","tcol"),st=el("div","tstack"),seg=el("div","tseg");seg.style.height=(n/wm*100)+"%";seg.style.background=TCOL.Story;st.appendChild(seg);col.appendChild(el("span","tn",n?String(n):""));col.appendChild(st);col.appendChild(el("span","tx",T.weeks[i]?T.weeks[i].label:""));cols.appendChild(col)});c2.appendChild(cols);w.appendChild(c2);
+  var c3=el("div","card");c3.appendChild(el("h3","","Tickets closed in this period · "+m.closedList.length));
+  if(!m.closedList.length)c3.appendChild(el("p","muted","Nothing closed in this period."));
+  m.closedList.forEach(function(x){var r=el("div","lrow");add(r,typeDot(x.type),ext(jiraUrlFor(x.key),x.key,"key"),el("span","",x.summary),el("span","mini",when(x.resolved)));c3.appendChild(r)});w.appendChild(c3);
+  var mb=(T.breaking||[]).filter(function(b){return b.member===m.name});
+  if(mb.length){var c4=el("div","card");c4.appendChild(el("h3","","Breaking changes"));mb.forEach(function(b){var r=el("div","brow"),hd=el("div","row");add(hd,ext(jiraUrlFor(b.key),b.key,"key"),el("span","tag",LABEL[b.area]+" #"+b.number),el("span","chip red round",b.count+" breaking"));r.appendChild(hd);r.appendChild(bullets(b.items));c4.appendChild(r)});w.appendChild(c4)}
+  if((m.leave||[]).length){var c5=el("div","card");c5.appendChild(el("h3","","Upcoming leave"));m.leave.forEach(function(l){c5.appendChild(el("p","",leaveText(l)+" · "+l.type))});w.appendChild(c5)}}
+
 /* ---------- history: old tickets that left Code Review ---------- */
 var hOpen={},hSel={},hArmed=null;
 function kb(n){return n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB"}
@@ -780,6 +927,10 @@ function renderSettings(){
   minRow("Approve","Minutes logged for each PR you approve.",wa,function(n){saveWl(wOn,n,wc)});
   minRow("Request changes","Minutes logged for each PR you request changes on.",wc,function(n){saveWl(wOn,wa,n)});
   w.appendChild(cw);
+  var ct=el("div","card");ct.appendChild(el("h3","","Team and Outlook leave"));
+  var t1=el("div","srow"),tl=el("div","l");add(tl,el("b","","Outlook leave (Claude connector)"),el("span","",S.outlookConfigured?"Leave is read from your Outlook through the Claude Microsoft 365 connector: the Holiday/Leave Calendar notices and leave emails your members send you. No keys needed. Test that it can read them (takes a few minutes).":"The Claude Microsoft 365 connector is not available."));
+  var tb2=actionButton("Test connection","",function(){tb2.disabled=true;api("/api/team/outlook-test",{}).then(function(r){toast(r.message)}).catch(function(e){toast(e.message,true)}).then(function(){tb2.disabled=false})},"sync");add(t1,tl,tb2);ct.appendChild(t1);
+  var t2=el("div","srow"),tl2=el("div","l");add(tl2,el("b","","Team members"),el("span","","Add or remove members on the Team page."));t2.appendChild(tl2);t2.appendChild(actionButton("Open Team","",function(){go("team",null)}));ct.appendChild(t2);w.appendChild(ct);
   var c2=el("div","card");c2.appendChild(el("h3","","Appearance"));var r3=el("div","srow"),l3=el("div","l");add(l3,el("b","","Theme"),el("span","","System follows your OS setting."));var seg=el("div","seg");
   var cur=lsGet("rb.theme")||"system";["system","light","dark"].forEach(function(k){var b=el("button","",upper1(k));b.type="button";b.setAttribute("aria-pressed",cur===k?"true":"false");b.addEventListener("click",function(){lsSet("rb.theme",k);applyTheme();renderSettings()});seg.appendChild(b)});add(r3,l3,seg);c2.appendChild(r3);w.appendChild(c2);
   var c3=el("div","card");c3.appendChild(el("h3","","Review rules (from config.json)"));var dl=el("dl","kv");
@@ -791,7 +942,7 @@ function applyTheme(){var t=lsGet("rb.theme")||"system",r=document.documentEleme
 /* ---------- top-level ---------- */
 function renderChrome(){
   var V=VIEWS[view];$("h1").textContent=V.t;$("sub").textContent=V.s;document.title=V.t;
-  $("v-list").hidden=view!=="all";$("v-settings").hidden=view!=="settings";$("v-history").hidden=view!=="history";
+  $("v-list").hidden=view!=="all";$("v-settings").hidden=view!=="settings";$("v-history").hidden=view!=="history";$("v-team").hidden=view!=="team";
   var live=$("live");live.className="live"+(offline?" off":S&&S.syncing?" sync":"");live.lastChild.textContent=offline?"Offline":S&&S.syncing?"Syncing":"Live";
   var sy=!!(S&&S.syncing);$("refresh").disabled=sy;$("synctxt").textContent=sy?"Syncing…":"Sync";$("syncic").setAttribute("class","ic"+(sy?" spin":""));
   $("syncinfo").textContent=S&&S.lastSyncAt?"Last sync "+ago(S.lastSyncAt)+" ago":"Not synced yet";
@@ -800,6 +951,7 @@ function renderChrome(){
 function renderAll(){
   if(!S)return;
   renderChrome();renderNav();
+  if(view==="team"){if(!T&&!tBusy)loadTeam(false);else if(!typingNow())renderTeam();$("backdrop").hidden=true;$("split").classList.remove("open");return}
   if(view==="history"){renderHistory();$("backdrop").hidden=true;$("split").classList.remove("open");return}
   if(view==="settings"){renderSettings();$("backdrop").hidden=true;$("split").classList.remove("open");return}
   renderFilters();renderList();renderPanel()}
