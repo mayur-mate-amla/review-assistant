@@ -1,0 +1,8 @@
+{
+  "name": "magicians-team-review",
+  "version": "1.0.0",
+  "description": "Strict Znode code review. Developers run /magicians-team-review:pre-pr before sending a PR; the reviewer runs /magicians-team-review:review. No API tokens: Jira through the Atlassian connector, GitHub through gh.",
+  "author": { "name": "Magicians Team" },
+  "repository": "https://github.com/mayur-mate-amla/review-assistant",
+  "keywords": ["code-review", "pull-request", "jira", "znode"]
+}

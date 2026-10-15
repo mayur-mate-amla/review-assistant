@@ -1,0 +1,12 @@
+{
+  "name": "magicians-tools",
+  "owner": { "name": "Magicians Team" },
+  "metadata": { "description": "Code review tools for the Magicians team" },
+  "plugins": [
+    {
+      "name": "magicians-team-review",
+      "source": "./plugins/magicians-team-review",
+      "description": "Strict code review for Znode PRs: developers self-check before a PR, the reviewer reviews and hands off. Reads Jira through the Atlassian connector and GitHub through gh; no tokens to configure."
+    }
+  ]
+}

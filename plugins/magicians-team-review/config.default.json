@@ -1,0 +1,26 @@
+{
+  "role": "developer",
+  "reviewer": { "name": "", "email": "" },
+  "approver": { "name": "", "email": "" },
+  "handoff": {
+    "postDevCheckToPr": false,
+    "postJiraComment": false,
+    "assignToReviewer": false,
+    "transitionTo": "Code Review",
+    "confirm": true
+  },
+  "reviewerActions": {
+    "postToGithub": true,
+    "postToJira": true,
+    "reassign": true,
+    "worklogMinutes": 10
+  },
+  "blockSeverity": "medium",
+  "requireTestsAreas": ["api"],
+  "repos": {
+    "admin": "MRRSoft/znode10-admin-migration",
+    "api": "MRRSoft/znode10-api-migration",
+    "webstore": "MRRSoft/znode-webstore10x-page-builder",
+    "db": "MRRSoft/znode10-multifront-db"
+  }
+}
